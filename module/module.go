@@ -1,6 +1,7 @@
 package module
 
 import (
+	"bytes"
 	_ "embed"
 	"io"
 	"strconv"
@@ -89,4 +90,12 @@ func ToSoftpackYML(name string, contents string) io.Reader {
 	packages[0] = name
 
 	return strings.NewReader("description: |\n" + description + "packages:\n  - " + strings.Join(packages, "\n  - ") + "\n")
+}
+
+func GenerateEnvReadme(modulePath string) io.Reader {
+	var buf bytes.Buffer
+
+	readmeTemplate.Execute(&buf, modulePath)
+
+	return &buf
 }

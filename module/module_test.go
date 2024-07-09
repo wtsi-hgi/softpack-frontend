@@ -32,3 +32,12 @@ func TestToSoftPack(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerateEnvReadme(t *testing.T) {
+	readme, _ := io.ReadAll(GenerateEnvReadme("HGI/common/some_environment"))
+	expected, _ := files.ReadFile(filepath.Join("files", "shpc.readme"))
+
+	if !bytes.Equal(readme, expected) {
+		t.Errorf("expecting readme %q, got %q", expected, readme)
+	}
+}
