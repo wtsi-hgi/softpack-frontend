@@ -1,8 +1,10 @@
 package artefacts
 
 import (
+	"io"
 	"io/fs"
 	"path"
+	"path/filepath"
 	"sync"
 
 	"github.com/go-git/go-billy/v5/memfs"
@@ -164,4 +166,53 @@ func (a *Artefacts) getLatestCommitFromPath(path string) (*object.Commit, error)
 	defer log.Close()
 
 	return log.Next()
+}
+
+func (a *Artefacts) AddFilesToEnv(usersOrGroups, userOrGroup, env string, files map[string]io.Reader) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	w, err := a.repo.Worktree()
+	if err != nil {
+		return err
+	}
+
+	for name, file := range files {
+		if err = addFileToWorktree(w, filepath.Join(usersOrGroups, userOrGroup, env, name), file); err != nil {
+			return err
+		}
+	}
+
+	if _, err = w.Commit("Successfully written artifact(s)", &git.CommitOptions{All: true}); err != nil {
+		return err
+	}
+
+	if a.head, err = a.repo.Head(); err != nil {
+		return err
+	}
+
+	return a.repo.Push(&git.PushOptions{
+		Force: true,
+	})
+}
+
+func addFileToWorktree(w *git.Worktree, path string, file io.Reader) error {
+	f, err := w.Filesystem.Create(path)
+	if err != nil {
+		return err
+	}
+
+	if _, err = io.Copy(f, file); err != nil {
+		return err
+	}
+
+	if c, ok := file.(io.Closer); ok {
+		c.Close()
+	}
+
+	if _, err = w.Add(path); err != nil {
+		return err
+	}
+
+	return nil
 }

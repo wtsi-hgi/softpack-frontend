@@ -2,6 +2,7 @@ package artefacts
 
 import (
 	_ "embed"
+	"errors"
 	"io"
 	"net/http/cgi"
 	"net/http/httptest"
@@ -139,4 +140,62 @@ func TestGetEnv(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestAddFilesToEnv(t *testing.T) {
+	url := setupRemoteGit(t)
+
+	r, err := New(Remote(url))
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	const (
+		newFileName     = "newFile"
+		newFileContents = "BRAND NEW"
+	)
+
+	if err = r.AddFilesToEnv(userDirectory, "userC", "env-1", map[string]io.Reader{
+		newFileName: strings.NewReader(newFileContents),
+	}); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if err = checkFile(t, r, userDirectory, "userC", "env-1", newFileName, newFileContents); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err = New(Remote(url))
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if err = checkFile(t, r, userDirectory, "userC", "env-1", newFileName, newFileContents); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func checkFile(t *testing.T, r *Artefacts, usersOrGroups, userOrGroup, envP, filename, contents string) error {
+	t.Helper()
+
+	env, err := r.GetEnv(usersOrGroups, userOrGroup, envP)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	file, ok := env[filename]
+	if !ok {
+		return errors.New("failed to read new file")
+	}
+
+	c, err := io.ReadAll(file)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if str := string(c); str != contents {
+		t.Fatalf("expected to read contents %q, got %q", contents, str)
+	}
+
+	return nil
 }
