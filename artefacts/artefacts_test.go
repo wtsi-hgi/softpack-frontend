@@ -110,3 +110,33 @@ func TestList(t *testing.T) {
 		}
 	}
 }
+
+func TestGetEnv(t *testing.T) {
+	url := setupRemoteGit(t)
+
+	r, err := New(Remote(url))
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	for n, test := range [...]struct {
+		Path        [3]string
+		Expectation map[string]string
+	}{
+		{Path: [3]string{userDirectory, "userA", "env-1"}, Expectation: map[string]string{"a-file": "1", "b-file": "contents"}},
+	} {
+		env, err := r.GetEnv(test.Path[0], test.Path[1], test.Path[2])
+		if err != nil {
+			t.Fatalf("test %d: unexpected error: %s", n+1, err)
+		}
+
+		for name, file := range env {
+			contents, err := io.ReadAll(file)
+			if err != nil {
+				t.Fatalf("test %d: unexpected error reading file (%s): %s", n+1, name, err)
+			} else if expectation := test.Expectation[name]; string(contents) != expectation {
+				t.Errorf("test %d: expecting to read %q from %s, got %q", n+1, expectation, name, contents)
+			}
+		}
+	}
+}

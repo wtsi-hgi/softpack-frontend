@@ -1,6 +1,8 @@
 package artefacts
 
 import (
+	"io/fs"
+	"path"
 	"sync"
 
 	"github.com/go-git/go-billy/v5/memfs"
@@ -89,4 +91,77 @@ func (a *Artefacts) List(parts ...string) ([]string, error) {
 	}
 
 	return entriesToNames(f.Entries)
+}
+
+type Package struct {
+	Name     string
+	Versions []string
+}
+
+func (a *Artefacts) GetEnv(usersOrGroups, userOrGroup, env string) (Environment, error) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	f, err := a.getTree(usersOrGroups, userOrGroup, env)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.entriesToEnvironment(path.Join(usersOrGroups, userOrGroup, env), f.Entries)
+}
+
+func (a *Artefacts) entriesToEnvironment(base string, entries []object.TreeEntry) (Environment, error) {
+	e := make(Environment, len(entries))
+
+	for _, entry := range entries {
+		f, err := a.createFileFromEntry(base, entry)
+		if err != nil {
+			return nil, err
+		}
+
+		e[entry.Name] = f
+	}
+
+	return e, nil
+}
+
+func (a *Artefacts) createFileFromEntry(base string, entry object.TreeEntry) (fs.File, error) {
+	filename := path.Join(base, entry.Name)
+
+	c, err := a.getLatestCommitFromPath(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := c.File(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := f.Reader()
+	if err != nil {
+		return nil, err
+	}
+
+	return &environmentFile{
+		name:       entry.Name,
+		mtime:      c.Author.When,
+		size:       f.Size,
+		ReadCloser: r,
+	}, nil
+}
+
+func (a *Artefacts) getLatestCommitFromPath(path string) (*object.Commit, error) {
+	log, err := a.repo.Log(&git.LogOptions{
+		From:     a.head.Hash(),
+		Order:    git.LogOrderCommitterTime,
+		FileName: &path,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	defer log.Close()
+
+	return log.Next()
 }
