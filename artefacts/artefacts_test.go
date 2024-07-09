@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
 func setupRemoteGit(t *testing.T) string {
@@ -198,4 +200,21 @@ func checkFile(t *testing.T, r *Artefacts, usersOrGroups, userOrGroup, envP, fil
 	}
 
 	return nil
+}
+
+func TestRemoveEnvironment(t *testing.T) {
+	url := setupRemoteGit(t)
+
+	r, err := New(Remote(url))
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if err = r.RemoveEnvironment(userDirectory, "userA", "env-1"); err != nil {
+		t.Fatalf("unexpected error while removing environment: %s", err)
+	}
+
+	if _, err = r.GetEnv(userDirectory, "userA", "env-1"); !errors.Is(err, object.ErrDirectoryNotFound) {
+		t.Errorf("expecting error %q, got %q", object.ErrDirectoryNotFound, err)
+	}
 }

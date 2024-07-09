@@ -216,3 +216,29 @@ func addFileToWorktree(w *git.Worktree, path string, file io.Reader) error {
 
 	return nil
 }
+
+func (a *Artefacts) RemoveEnvironment(usersOrGroups, userOrGroup, env string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	w, err := a.repo.Worktree()
+	if err != nil {
+		return err
+	}
+
+	if err = w.RemoveGlob(filepath.Join(usersOrGroups, userOrGroup, env, "*")); err != nil {
+		return err
+	}
+
+	if _, err = w.Commit("Removed environment", &git.CommitOptions{All: true}); err != nil {
+		return err
+	}
+
+	if a.head, err = a.repo.Head(); err != nil {
+		return err
+	}
+
+	return a.repo.Push(&git.PushOptions{
+		Force: true,
+	})
+}
