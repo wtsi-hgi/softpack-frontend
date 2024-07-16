@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
-	"hash"
 	"io"
 	"net/http"
 	"sync"
@@ -19,7 +18,6 @@ type File struct {
 	name string
 
 	mu                       sync.RWMutex
-	hash                     hash.Hash
 	compressed, uncompressed []byte
 	modTime                  time.Time
 }
