@@ -7,7 +7,7 @@ require (
 	github.com/go-git/go-git/v5 v5.12.0
 	vimagination.zapto.org/httpencoding v1.0.0
 	vimagination.zapto.org/parser v1.0.2
-	vimagination.zapto.org/python v0.0.0-20240715171338-77566563f4bb
+	vimagination.zapto.org/python v0.0.0-20240716062220-51b694280f13
 )
 
 require (
@@ -31,4 +31,5 @@ require (
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/tools v0.13.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
