@@ -1,7 +1,6 @@
 package spack
 
 import (
-	"encoding/json"
 	"io"
 	"path"
 	"sort"
@@ -176,12 +175,5 @@ func (s *Spack) mergeRecipes(recipes map[string]recipe) {
 		return recipeList[i].Name < recipeList[j].Name
 	})
 
-	pr, pw := io.Pipe()
-
-	go func() {
-		json.NewEncoder(pw).Encode(recipeList)
-		pw.Close()
-	}()
-
-	s.File.ReadFrom(pr)
+	s.File.Encode(recipeList)
 }
