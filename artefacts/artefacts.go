@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	userDirectory  = "users"
-	groupDirectory = "groups"
+	UserDirectory  = "users"
+	GroupDirectory = "groups"
 )
 
 type Artefacts struct {
