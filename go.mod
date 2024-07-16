@@ -1,10 +1,13 @@
 module github.com/wtsi-hgi/softpack-frontend
 
-go 1.22.4
+go 1.22.5
 
 require (
 	github.com/go-git/go-billy/v5 v5.5.0
 	github.com/go-git/go-git/v5 v5.12.0
+	vimagination.zapto.org/httpencoding v1.0.0
+	vimagination.zapto.org/parser v1.0.2
+	vimagination.zapto.org/python v0.0.0-20240715171338-77566563f4bb
 )
 
 require (
