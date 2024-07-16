@@ -31,49 +31,44 @@ func New(name string) *File {
 }
 
 func (f *File) ReadFrom(r io.Reader) (int64, error) {
-	var compressed, uncompressed bytes.Buffer
+	var uncompressed bytes.Buffer
 
-	g := gzip.NewWriter(&compressed)
-
-	n, err := uncompressed.ReadFrom(io.TeeReader(r, g))
+	n, err := uncompressed.ReadFrom(r)
 	if err != nil {
 		return n, err
 	}
 
-	g.Close()
-
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	if !bytes.Equal(uncompressed.Bytes(), f.uncompressed) {
-		f.modTime = time.Now()
-		f.compressed = compressed.Bytes()
-		f.uncompressed = uncompressed.Bytes()
-	}
+	f.writeData(uncompressed.Bytes())
 
 	return n, nil
 }
 
 func (f *File) Encode(v any) {
-	var compressed, uncompressed bytes.Buffer
+	var uncompressed bytes.Buffer
 
 	json.NewEncoder(&uncompressed).Encode(v)
 
+	f.writeData(uncompressed.Bytes())
+}
+
+func (f *File) writeData(p []byte) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if bytes.Equal(uncompressed.Bytes(), f.uncompressed) {
+	if bytes.Equal(p, f.uncompressed) {
 		return
 	}
 
+	var compressed bytes.Buffer
+
 	g := gzip.NewWriter(&compressed)
 
-	g.Write(uncompressed.Bytes())
+	g.Write(p)
 	g.Close()
 
 	f.modTime = time.Now()
 	f.compressed = compressed.Bytes()
-	f.uncompressed = uncompressed.Bytes()
+	f.uncompressed = p
 }
 
 func (f *File) ServeHTTP(w http.ResponseWriter, r *http.Request) {
