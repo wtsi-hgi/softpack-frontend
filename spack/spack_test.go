@@ -2,53 +2,59 @@ package spack
 
 import (
 	_ "embed"
-	"fmt"
-	"os"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
 	"testing"
 
-	ispack "github.com/wtsi-hgi/softpack-frontend/internal/spack"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/wtsi-hgi/softpack-frontend/internal/git"
 )
 
-func TestMain(m *testing.M) {
-	cleanup, err := ispack.Setup()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error creating fake spack: %s", err)
-
-		os.Exit(1)
-	}
-
-	code := m.Run()
-
-	cleanup()
-
-	os.Exit(code)
-}
-
 func TestRecipeLoad(t *testing.T) {
-	s, err := New()
+	sr := git.New(t)
+
+	sr.Add(t, map[string]string{
+		spackPackages + "/abc/package.py": "version(\"1.1\")\nversion(\"1.2\")",
+		spackPackages + "/def/package.py": "version(\"dev\")\nversion(\"3.1.3\")",
+	})
+
+	spackRepo = sr.URL()
+
+	s, err := New(plumbing.NewBranchReferenceName("master"))
 	if err != nil {
 		t.Fatalf("unexpected error creating spack object: %s", err)
 	}
 
-	r, err := s.ListRecipes()
-	if err != nil {
-		t.Fatalf("unexpected error getting recipes: %s", err)
+	cr := git.New(t)
+	cr.Add(t, map[string]string{
+		customPackages + "/ghi/package.py": "version(\"1\")\nversion(\"2\")\nversion(\"3\")",
+		customPackages + "/def/package.py": "version(\"dev\")\nversion(\"3.1.4\")",
+	})
+
+	if err := s.WatchRemote(cr.URL(), -1); err != nil {
+		t.Fatalf("unexpected error getting remote: %s", err)
 	}
 
-	const (
-		numRecipes        = 7469
-		firstName         = "3dtk"
-		firstNumVersions  = 2
-		firstfirstVersion = "trunk"
-	)
+	ts := httptest.NewServer(s)
 
-	if len(r) != numRecipes {
-		t.Errorf("expecting %d recipes, got %d", numRecipes, len(r))
-	} else if r[0].Name != firstName {
-		t.Errorf("expecting first recipe to be %s, got %s", firstName, r[0].Name)
-	} else if len(r[0].Version) != firstNumVersions {
-		t.Errorf("expecting first recipe to have %d recipes, got %d", firstNumVersions, len(r[0].Version))
-	} else if r[0].Version[0] != firstfirstVersion {
-		t.Errorf("expecting first recipes first version to be %s, got %s", firstfirstVersion, r[0].Version[0])
+	resp, err := http.Get(ts.URL)
+	if err != nil {
+		t.Fatalf("unexpected error getting JSON: %s", err)
+	}
+
+	var recipes []recipe
+
+	expectation := []recipe{
+		{"abc", []string{"1.1", "1.2"}},
+		{"def", []string{"dev", "3.1.4"}},
+		{"ghi", []string{"1", "2", "3"}},
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&recipes); err != nil {
+		t.Errorf("unexpected error decoding JSON: %s", err)
+	} else if !reflect.DeepEqual(recipes, expectation) {
+		t.Errorf("expecting recipes %v, got %v", expectation, recipes)
 	}
 }
