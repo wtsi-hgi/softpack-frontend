@@ -1,6 +1,7 @@
 package artefacts
 
 import (
+	"errors"
 	"io"
 	"io/fs"
 	"path"
@@ -11,6 +12,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/storage/memory"
 )
 
@@ -36,14 +38,18 @@ func New(opts ...Option) (*Artefacts, error) {
 		o.storage = memory.NewStorage()
 	}
 
-	r, err := git.Clone(o.storage, memfs.New(), &o.CloneOptions)
-	if err != nil {
-		return nil, err
-	}
+	var head *plumbing.Reference
 
-	head, err := r.Head()
-	if err != nil {
-		return nil, err
+	r, err := git.Clone(o.storage, memfs.New(), &o.CloneOptions)
+	if !errors.Is(err, transport.ErrEmptyRemoteRepository) {
+		if err != nil {
+			return nil, err
+		}
+
+		head, err = r.Head()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &Artefacts{
@@ -53,6 +59,10 @@ func New(opts ...Option) (*Artefacts, error) {
 }
 
 func (a *Artefacts) getTree(path ...string) (*object.Tree, error) {
+	if a.head == nil {
+		return nil, nil
+	}
+
 	c, err := a.repo.CommitObject(a.head.Hash())
 	if err != nil {
 		return nil, err
@@ -92,6 +102,10 @@ func (a *Artefacts) List(parts ...string) ([]string, error) {
 		return nil, err
 	}
 
+	if f == nil {
+		return nil, nil
+	}
+
 	return entriesToNames(f.Entries)
 }
 
@@ -107,6 +121,10 @@ func (a *Artefacts) GetEnv(usersOrGroups, userOrGroup, env string) (Environment,
 	f, err := a.getTree(usersOrGroups, userOrGroup, env)
 	if err != nil {
 		return nil, err
+	}
+
+	if f == nil {
+		return nil, nil
 	}
 
 	return a.entriesToEnvironment(path.Join(usersOrGroups, userOrGroup, env), f.Entries)
