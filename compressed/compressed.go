@@ -3,6 +3,7 @@ package compressed
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"hash"
 	"io"
 	"net/http"
@@ -51,6 +52,28 @@ func (f *File) ReadFrom(r io.Reader) (int64, error) {
 	}
 
 	return n, nil
+}
+
+func (f *File) Encode(v any) {
+	var compressed, uncompressed bytes.Buffer
+
+	json.NewEncoder(&uncompressed).Encode(v)
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if bytes.Equal(uncompressed.Bytes(), f.uncompressed) {
+		return
+	}
+
+	g := gzip.NewWriter(&compressed)
+
+	g.Write(uncompressed.Bytes())
+	g.Close()
+
+	f.modTime = time.Now()
+	f.compressed = compressed.Bytes()
+	f.uncompressed = uncompressed.Bytes()
 }
 
 func (f *File) ServeHTTP(w http.ResponseWriter, r *http.Request) {
