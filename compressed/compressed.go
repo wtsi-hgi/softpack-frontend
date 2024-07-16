@@ -3,7 +3,6 @@ package compressed
 import (
 	"bytes"
 	"compress/gzip"
-	"crypto/sha256"
 	"hash"
 	"io"
 	"net/http"
@@ -21,14 +20,12 @@ type File struct {
 	mu                       sync.RWMutex
 	hash                     hash.Hash
 	compressed, uncompressed []byte
-	lastHash                 []byte
 	modTime                  time.Time
 }
 
 func New(name string) *File {
 	return &File{
 		name: name,
-		hash: sha256.New(),
 	}
 }
 
@@ -47,10 +44,7 @@ func (f *File) ReadFrom(r io.Reader) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	hash := f.hash.Sum(uncompressed.Bytes())
-
-	if !bytes.Equal(hash, f.lastHash) {
-		f.lastHash = hash
+	if !bytes.Equal(uncompressed.Bytes(), f.uncompressed) {
 		f.modTime = time.Now()
 		f.compressed = compressed.Bytes()
 		f.uncompressed = uncompressed.Bytes()
