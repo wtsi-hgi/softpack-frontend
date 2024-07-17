@@ -100,7 +100,7 @@ func parseRecipeVersions(r io.Reader) []string {
 
 				if p.Accept(python.TokenStringLiteral) {
 					tokens := p.Get()
-					ver, err := python.Unescape(tokens[len(tokens)-1].Data)
+					ver, err := python.Unquote(tokens[len(tokens)-1].Data)
 
 					if err == nil {
 						versions = append(versions, ver)
