@@ -11,8 +11,6 @@ import (
 	"github.com/wtsi-hgi/softpack-frontend/internal/git"
 )
 
-var testFiles = map[string]string{}
-
 func TestEnvironments(t *testing.T) {
 	for n, test := range [...]struct {
 		Files       map[string]string
