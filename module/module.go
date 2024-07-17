@@ -11,8 +11,9 @@ import (
 
 var (
 	//go:embed readme.tmpl
-	readme         string
-	readmeTemplate = template.Must(template.New("").Parse(readme))
+	readme string
+
+	readmeTemplate = template.Must(template.New("").Parse(readme)) //nolint:gochecknoglobals
 )
 
 const whitespace = " \t\n"
@@ -31,14 +32,14 @@ func ToSoftpackYML(name string, contents string) io.Reader {
 			if line == "}" {
 				inHelp = false
 			} else if strings.HasPrefix(line, "puts stderr") {
-				line, _ = strconv.Unquote(strings.ReplaceAll(strings.Trim(strings.TrimPrefix(line, "puts stderr"), whitespace), "\\$", "$"))
+				line, _ = strconv.Unquote(strings.ReplaceAll(strings.Trim(strings.TrimPrefix(line, "puts stderr"), whitespace), "\\$", "$")) //nolint:errcheck
 
 				description += "  " + line + "\n"
 			}
 		} else if strings.HasPrefix(line, "proc ModulesHelp") {
 			inHelp = true
 		} else if strings.HasPrefix(line, "module-whatis ") {
-			line, _ = strconv.Unquote(strings.Trim(strings.TrimPrefix(line, "module-whatis"), whitespace))
+			line, _ = strconv.Unquote(strings.Trim(strings.TrimPrefix(line, "module-whatis"), whitespace)) //nolint:errcheck
 			line = strings.Trim(line, whitespace)
 
 			if strings.HasPrefix(line, "Name:") {
@@ -95,7 +96,7 @@ func ToSoftpackYML(name string, contents string) io.Reader {
 func GenerateEnvReadme(modulePath string) io.Reader {
 	var buf bytes.Buffer
 
-	readmeTemplate.Execute(&buf, modulePath)
+	readmeTemplate.Execute(&buf, modulePath) //nolint:errcheck
 
 	return &buf
 }

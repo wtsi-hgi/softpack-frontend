@@ -12,7 +12,7 @@ import (
 	"vimagination.zapto.org/httpencoding"
 )
 
-var isGzip = httpencoding.HandlerFunc(func(enc httpencoding.Encoding) bool { return enc == "gzip" })
+var isGzip = httpencoding.HandlerFunc(func(enc httpencoding.Encoding) bool { return enc == "gzip" }) //nolint:gochecknoglobals
 
 type File struct {
 	name string
@@ -44,7 +44,7 @@ func (f *File) ReadFrom(r io.Reader) (int64, error) {
 func (f *File) Encode(v any) {
 	var uncompressed bytes.Buffer
 
-	json.NewEncoder(&uncompressed).Encode(v)
+	json.NewEncoder(&uncompressed).Encode(v) //nolint:errcheck
 
 	f.writeData(uncompressed.Bytes())
 }
@@ -61,7 +61,7 @@ func (f *File) writeData(p []byte) {
 
 	g := gzip.NewWriter(&compressed)
 
-	g.Write(p)
+	g.Write(p) //nolint:errcheck
 	g.Close()
 
 	f.modTime = time.Now()

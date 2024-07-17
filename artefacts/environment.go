@@ -32,7 +32,7 @@ func EnvironmentFromReaders(readers map[string]io.Reader) Environment {
 	return e
 }
 
-func (e Environment) Close() error {
+func (e Environment) Close() error { //nolint:unparam
 	for _, f := range e {
 		f.Close()
 	}

@@ -21,10 +21,10 @@ func TestEnvironments(t *testing.T) {
 		},
 		{
 			Files: map[string]string{
-				"users/userA/envA-1/" + built_by_softpack_file: "",
-				"users/userA/envA-1/" + readme_file:            "README",
-				"users/userA/envA-1/" + module_file:            "",
-				"users/userA/envA-1/" + environments_file: `description: MY DESC
+				"users/userA/envA-1/" + builtBySoftpackFile: "",
+				"users/userA/envA-1/" + readmeFile:          "README",
+				"users/userA/envA-1/" + moduleFile:          "",
+				"users/userA/envA-1/" + environmentsFile: `description: MY DESC
 packages:
  - packageA@1
  - packageB@2

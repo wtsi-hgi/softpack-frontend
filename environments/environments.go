@@ -19,14 +19,13 @@ import (
 )
 
 const (
-	environments_root          = "environments"
-	environments_file          = "softpack.yml"
-	builder_out                = "builder.out"
-	module_file                = "module"
-	readme_file                = "README.md"
-	meta_file                  = "meta.yml"
-	built_by_softpack_file     = ".built_by_softpack"
-	generated_from_module_file = ".generated_from_module"
+	environmentsFile        = "softpack.yml"
+	builderOut              = "builder.out"
+	moduleFile              = "module"
+	readmeFile              = "README.md"
+	metaFile                = "meta.yml"
+	builtBySoftpackFile     = ".built_by_softpack"
+	generatedFromModuleFile = ".generated_from_module"
 )
 
 type envStatus byte
@@ -73,15 +72,15 @@ func environmentFromArtefacts(a artefacts.Environment, p string) (*environment, 
 		NameVersion: nameVer,
 	}
 
-	_, e.SoftPack = a[built_by_softpack_file]
+	_, e.SoftPack = a[builtBySoftpackFile]
 
-	if _, hasModule := a[module_file]; hasModule {
+	if _, hasModule := a[moduleFile]; hasModule {
 		if err := parseEnvironment(a, e); err != nil {
 			return nil, err
 		}
 
 		e.Status = envReady
-	} else if _, hasbuilderOut := a[builder_out]; hasbuilderOut {
+	} else if _, hasbuilderOut := a[builderOut]; hasbuilderOut {
 		e.Status = envFailed
 	}
 
@@ -129,39 +128,38 @@ func splitLastOnce(str string, char byte) (string, string) {
 }
 
 func parseEnvironment(a artefacts.Environment, e *environment) error {
-	ef := a[environments_file]
-	m := a[meta_file]
-	readme := a[readme_file]
+	ef := a[environmentsFile]
+	m := a[metaFile]
+	readme := a[readmeFile]
 
 	if ef == nil || readme == nil {
 		return ErrBadEnvironment
 	}
 
-	var dp descriptionPackages
+	var (
+		dp       descriptionPackages
+		sb       strings.Builder
+		metadata meta
+	)
 
 	if err := yaml.NewDecoder(ef).Decode(&dp); err != nil {
 		return err
 	}
 
-	e.Description = dp.Description
-	e.Packages = dp.Packages
-
 	if m != nil {
-		var meta meta
-
-		if err := yaml.NewDecoder(m).Decode(&meta); err != nil {
+		if err := yaml.NewDecoder(m).Decode(&metadata); err != nil {
 			return err
 		}
 
-		e.Tags = meta.Tags
+		e.Tags = metadata.Tags
 	}
-
-	var sb strings.Builder
 
 	if _, err := io.Copy(&sb, readme); err != nil {
 		return err
 	}
 
+	e.Description = dp.Description
+	e.Packages = dp.Packages
 	e.ReadMe = sb.String()
 
 	return nil
@@ -190,12 +188,11 @@ func (e environments) LoadFrom(a *artefacts.Artefacts, base string) error {
 			}
 
 			p := path.Join(base, entry, env)
-			ea, err := environmentFromArtefacts(as, p)
+
+			e[p], err = environmentFromArtefacts(as, p)
 			if err != nil {
 				return err
 			}
-
-			e[p] = ea
 		}
 	}
 

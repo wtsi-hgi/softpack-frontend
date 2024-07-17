@@ -2,7 +2,7 @@ package git
 
 import (
 	"io"
-	"net/http/cgi"
+	"net/http/cgi" //nolint:gosec
 	"net/http/httptest"
 	"os"
 	"os/exec"
@@ -24,6 +24,7 @@ func New(t *testing.T) *Remote {
 	execGit(t, dir, "config", "--bool", "core.bare", "true")
 
 	cmd := exec.Command("git", "--exec-path")
+
 	ep, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("error finding git http backend: %s", err)

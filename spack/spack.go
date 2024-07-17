@@ -16,8 +16,9 @@ import (
 	"vimagination.zapto.org/python"
 )
 
-var (
-	spackRepo      = "https://github.com/spack/spack.git"
+var spackRepo = "https://github.com/spack/spack.git" //nolint:gochecknoglobals
+
+const (
 	spackPackages  = "var/spack/repos/builtin/packages"
 	customPackages = "packages"
 )
@@ -29,13 +30,13 @@ type Spack struct {
 
 func New(spackVersion plumbing.ReferenceName) (*Spack, error) {
 	builtinFS := memfs.New()
-	_, err := git.Clone(memory.NewStorage(), builtinFS, &git.CloneOptions{
+
+	if _, err := git.Clone(memory.NewStorage(), builtinFS, &git.CloneOptions{
 		URL:           spackRepo,
 		ReferenceName: spackVersion,
 		SingleBranch:  true,
 		Depth:         1,
-	})
-	if err != nil {
+	}); err != nil {
 		return nil, err
 	}
 
@@ -51,7 +52,7 @@ func New(spackVersion plumbing.ReferenceName) (*Spack, error) {
 }
 
 func readRecipes(fs billy.Filesystem, base string) (map[string]recipe, error) {
-	recipePaths, _ := fs.ReadDir(base)
+	recipePaths, _ := fs.ReadDir(base) //nolint:errcheck
 
 	recipes := make(map[string]recipe, len(recipePaths))
 
@@ -100,8 +101,8 @@ func parseRecipeVersions(r io.Reader) []string {
 
 				if p.Accept(python.TokenStringLiteral) {
 					tokens := p.Get()
-					ver, err := python.Unquote(tokens[len(tokens)-1].Data)
 
+					ver, err := python.Unquote(tokens[len(tokens)-1].Data)
 					if err == nil {
 						versions = append(versions, ver)
 					}
@@ -117,6 +118,7 @@ func parseRecipeVersions(r io.Reader) []string {
 
 func (s *Spack) WatchRemote(url string, timeout time.Duration) error {
 	fs := memfs.New()
+
 	r, err := git.Clone(memory.NewStorage(), fs, &git.CloneOptions{
 		URL: url,
 	})
@@ -135,7 +137,7 @@ func (s *Spack) WatchRemote(url string, timeout time.Duration) error {
 		go func() {
 			for {
 				time.Sleep(timeout)
-				w.Pull(&git.PullOptions{
+				w.Pull(&git.PullOptions{ //nolint:errcheck
 					Force: true,
 				})
 				s.updateRemote(fs)
@@ -159,7 +161,7 @@ type recipe struct {
 }
 
 func (s *Spack) mergeRecipes(recipes map[string]recipe) {
-	var recipeList []recipe
+	recipeList := make([]recipe, 0, len(recipes)+len(s.builtIn))
 
 	for name, recipe := range s.builtIn {
 		if _, ok := recipes[name]; !ok {

@@ -60,7 +60,7 @@ func New(opts ...Option) (*Artefacts, error) {
 
 func (a *Artefacts) getTree(path ...string) (*object.Tree, error) {
 	if a.head == nil {
-		return nil, nil
+		return &object.Tree{}, nil
 	}
 
 	c, err := a.repo.CommitObject(a.head.Hash())
@@ -102,10 +102,6 @@ func (a *Artefacts) List(parts ...string) ([]string, error) {
 		return nil, err
 	}
 
-	if f == nil {
-		return nil, nil
-	}
-
 	return entriesToNames(f.Entries)
 }
 
@@ -121,10 +117,6 @@ func (a *Artefacts) GetEnv(usersOrGroups, userOrGroup, env string) (Environment,
 	f, err := a.getTree(usersOrGroups, userOrGroup, env)
 	if err != nil {
 		return nil, err
-	}
-
-	if f == nil {
-		return nil, nil
 	}
 
 	return a.entriesToEnvironment(path.Join(usersOrGroups, userOrGroup, env), f.Entries)
@@ -201,7 +193,7 @@ func (a *Artefacts) AddFilesToEnv(usersOrGroups, userOrGroup, env string, files 
 		}
 	}
 
-	if _, err = w.Commit("Successfully written artifact(s)", &git.CommitOptions{All: true}); err != nil {
+	if _, err = w.Commit("Successfully written artefact(s)", &git.CommitOptions{All: true}); err != nil {
 		return err
 	}
 
