@@ -8,6 +8,7 @@ require (
 	golang.org/x/net v0.22.0
 	gopkg.in/yaml.v3 v3.0.1
 	vimagination.zapto.org/httpencoding v1.0.0
+	vimagination.zapto.org/jsonrpc v1.2.1
 	vimagination.zapto.org/parser v1.0.2
 	vimagination.zapto.org/python v0.0.0-20240717063448-d264cd395788
 	vimagination.zapto.org/tsserver v1.0.11
@@ -34,5 +35,4 @@ require (
 	golang.org/x/tools v0.13.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	vimagination.zapto.org/javascript v1.4.15 // indirect
-	vimagination.zapto.org/jsonrpc v1.2.1 // indirect
 )
