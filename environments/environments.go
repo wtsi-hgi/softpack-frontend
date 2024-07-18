@@ -199,11 +199,17 @@ func New(a *artefacts.Artefacts) (*Environments, error) {
 	e.socket.Environments = e
 
 	e.ServeMux.Handle("/socket", websocket.Handler(e.socket.ServeConn))
+	e.ServeMux.HandleFunc("/upload", e.handleUpload)
+	e.ServeMux.HandleFunc("/resend-pending-builds", e.handleResend)
 
 	e.updateJSON()
 
 	return e, nil
 }
+
+func (e *Environments) handleUpload(w http.ResponseWriter, r *http.Request) {}
+
+func (e *Environments) handleResend(w http.ResponseWriter, r *http.Request) {}
 
 func (e *Environments) updateJSON() {
 	e.mu.Lock()
