@@ -1,23 +1,27 @@
 package environments
 
 import (
+	"bytes"
 	"encoding/json"
-	"net/http"
 	"net/http/httptest"
+	"path"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/wtsi-hgi/softpack-frontend/artefacts"
 	"github.com/wtsi-hgi/softpack-frontend/internal/git"
+	"golang.org/x/net/websocket"
+	"vimagination.zapto.org/jsonrpc"
 )
 
 func TestEnvironments(t *testing.T) {
 	for n, test := range [...]struct {
 		Files       map[string]string
-		Expectation []environment
+		Expectation environments
 	}{
 		{
-			Expectation: []environment{},
+			Expectation: environments{},
 		},
 		{
 			Files: map[string]string{
@@ -30,10 +34,8 @@ packages:
  - packageB@2
 `,
 			},
-			Expectation: []environment{
-				{
-					Path:        "users/userA",
-					NameVersion: "envA-1",
+			Expectation: environments{
+				"users/userA/envA-1": {
 					Packages:    []string{"packageA@1", "packageB@2"},
 					Description: "MY DESC",
 					ReadMe:      "README",
@@ -46,18 +48,45 @@ packages:
 		g := git.New(t)
 		g.Add(t, test.Files)
 
-		var envs []environment
-
 		if a, err := artefacts.New(artefacts.Remote(g.URL())); err != nil {
 			t.Errorf("test %d: unexpected error creating artefacts: %s", n+1, err)
 		} else if e, err := New(a); err != nil {
 			t.Fatalf("test %d: unexpected error creating environments: %s", n+1, err)
-		} else if resp, err := http.Get(httptest.NewServer(e).URL + "/environments.json"); err != nil {
+		} else if envs, err := loadFromWebsocket("ws" + httptest.NewServer(e).URL[4:] + socketPath); err != nil {
 			t.Fatalf("test %d: unexpected error getting environments: %s", n+1, err)
-		} else if err := json.NewDecoder(resp.Body).Decode(&envs); err != nil {
-			t.Fatalf("test %d: unexpected error decoding environments: %s", n+1, err)
 		} else if !reflect.DeepEqual(envs, test.Expectation) {
 			t.Errorf("test %d: expecting envs %v, got %v", n+1, test.Expectation, envs)
 		}
 	}
+}
+
+func loadFromWebsocket(url string) (environments, error) {
+	conn, err := websocket.Dial(url, "", path.Dir(url))
+	if err != nil {
+		return nil, err
+	}
+
+	defer conn.Close()
+
+	c := jsonrpc.NewClient(conn)
+
+	defer c.Close()
+
+	envsCh := make(chan environments, 1)
+
+	c.Subscribe(-1, func(rm json.RawMessage) {
+		var envs environments
+
+		json.NewDecoder(bytes.NewReader(rm)).Decode(&envs)
+
+		envsCh <- envs
+	})
+
+	go func() {
+		time.Sleep(time.Second)
+
+		close(envsCh)
+	}()
+
+	return <-envsCh, nil
 }
