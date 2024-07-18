@@ -147,6 +147,8 @@ vimagination.zapto.org/httpencoding v1.0.0 h1:sSibnPq1pKROK4IBTNNCAKRPCijIZAaMQU
 vimagination.zapto.org/httpencoding v1.0.0/go.mod h1:J2hxhPn3VjWestQQ036OYpDwwerfvIHmbtmTqpKVe0w=
 vimagination.zapto.org/javascript v1.4.15 h1:y+y/QCvti1lUHaVD6VSZviSCl2HMAmU5G3ZPlcjkFlQ=
 vimagination.zapto.org/javascript v1.4.15/go.mod h1:zGQvh50K8o8zaa/b3XH83gsjwSYz5ubq6EgpJw3smxg=
+vimagination.zapto.org/jsonrpc v1.2.1 h1:zsm7ndUizhxUi116DBJ4akKF2OnwBopzBGR1to7iaK4=
+vimagination.zapto.org/jsonrpc v1.2.1/go.mod h1:g41PBlAn31blw/VOQ2Vme2WUj0TI7OjPELvqn6luED4=
 vimagination.zapto.org/parser v1.0.2 h1:EVp5w4HmERKntuXFhJVVdmLanqXUBW/VyDUzUDY/rY0=
 vimagination.zapto.org/parser v1.0.2/go.mod h1:/H483adsvbp1SLfB0xfFBVfh+mze11+FHwCijc0rpCc=
 vimagination.zapto.org/python v0.0.0-20240717063448-d264cd395788 h1:JMMrBj3zAsQ8ct0W1Oas4LBnGLdem9cx2+00IyTTKhE=

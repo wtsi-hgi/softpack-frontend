@@ -2,19 +2,17 @@ package environments
 
 import (
 	"bytes"
-	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"path"
-	"regexp"
-	"sort"
 	"strings"
 	"sync"
 
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/wtsi-hgi/softpack-frontend/artefacts"
-	"github.com/wtsi-hgi/softpack-frontend/compressed"
+	"golang.org/x/net/websocket"
 	"gopkg.in/yaml.v3"
 )
 
@@ -36,14 +34,6 @@ const (
 	envReady
 )
 
-const zeros = "00000000000000000000"
-
-var (
-	digitsRegexp    = regexp.MustCompile(`\d+`)
-	nondigitsRegexp = regexp.MustCompile(`[^\d]+`)
-	idEncoding      = base64.NewEncoding("-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz").WithPadding(base64.NoPadding)
-)
-
 type descriptionPackages struct {
 	Description string
 	Packages    []string
@@ -54,9 +44,6 @@ type meta struct {
 }
 
 type environment struct {
-	id          string
-	Path        string
-	NameVersion string
 	Tags        []string
 	Packages    []string
 	Description string
@@ -66,12 +53,7 @@ type environment struct {
 }
 
 func environmentFromArtefacts(a artefacts.Environment, p string) (*environment, error) {
-	path, nameVer := splitLastOnce(p, '/')
-	e := &environment{
-		Path:        path,
-		NameVersion: nameVer,
-	}
-
+	e := &environment{}
 	_, e.SoftPack = a[builtBySoftpackFile]
 
 	if _, hasModule := a[moduleFile]; hasModule {
@@ -84,47 +66,7 @@ func environmentFromArtefacts(a artefacts.Environment, p string) (*environment, 
 		e.Status = envFailed
 	}
 
-	e.id = idFromPath(p)
-
 	return e, nil
-}
-
-func idFromPath(path string) string {
-	base, env := splitLastOnce(path, '/')
-	name, version := splitLastOnce(env, '-')
-	numberParts := digitsRegexp.FindAllString(version, -1)
-	stringParts := nondigitsRegexp.FindAllString(version, -1)
-
-	var sb bytes.Buffer
-
-	sb.WriteString(strings.ToLower(name))
-	sb.WriteRune('-')
-
-	for _, n := range numberParts {
-		if len(n) < 20 {
-			sb.WriteString(zeros[:len(zeros)-len(n)])
-		}
-
-		sb.WriteString(n)
-	}
-
-	for _, s := range stringParts {
-		sb.WriteString(s)
-	}
-
-	sb.WriteRune(0)
-	sb.WriteString(base)
-
-	return idEncoding.EncodeToString(sb.Bytes())
-}
-
-func splitLastOnce(str string, char byte) (string, string) {
-	i := strings.LastIndexByte(str, char)
-	if i == -1 {
-		return str, ""
-	}
-
-	return str[:i], str[i+1:]
 }
 
 func parseEnvironment(a artefacts.Environment, e *environment) error {
@@ -200,11 +142,13 @@ func (e environments) LoadFrom(a *artefacts.Artefacts, base string) error {
 }
 
 type Environments struct {
-	artefacts        *artefacts.Artefacts
-	environmentsJSON *compressed.File
+	artefacts *artefacts.Artefacts
+	socket
+	http.Handler
 
 	mu           sync.RWMutex
 	environments map[string]*environment
+	json         json.RawMessage
 }
 
 func New(a *artefacts.Artefacts) (*Environments, error) {
@@ -219,10 +163,12 @@ func New(a *artefacts.Artefacts) (*Environments, error) {
 	}
 
 	e := &Environments{
-		artefacts:        a,
-		environments:     envs,
-		environmentsJSON: compressed.New("environments.json"),
+		artefacts:    a,
+		environments: envs,
 	}
+
+	e.socket.Environments = e
+	e.Handler = websocket.Handler(e.socket.ServeConn)
 
 	e.updateJSON()
 
@@ -230,29 +176,14 @@ func New(a *artefacts.Artefacts) (*Environments, error) {
 }
 
 func (e *Environments) updateJSON() {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
+	e.mu.Lock()
+	defer e.mu.Unlock()
 
-	envs := make([]*environment, 0, len(e.environments))
+	var buf bytes.Buffer
 
-	for _, env := range e.environments {
-		envs = append(envs, env)
-	}
+	json.NewEncoder(&buf).Encode(e)
 
-	sort.Slice(envs, func(i, j int) bool {
-		return envs[i].id < envs[j].id
-	})
-
-	e.environmentsJSON.Encode(envs)
-}
-
-func (e *Environments) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	switch path.Base(r.URL.Path) {
-	case "environments.json":
-		e.environmentsJSON.ServeHTTP(w, r)
-	default:
-		http.NotFound(w, r)
-	}
+	e.json = json.RawMessage(buf.Bytes())
 }
 
 var ErrBadEnvironment = errors.New("bad environment")
