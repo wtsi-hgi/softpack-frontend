@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	environmentsPath = "environments"
-	recipesPath      = "recipes"
+	environmentsPath = "/environments"
+	recipesPath      = "/recipes"
 )
 
 //go:embed static
@@ -27,12 +27,12 @@ func New(s *spack.Spack, e *environments.Environments) http.Handler {
 }
 
 func mux(s *spack.Spack, e *environments.Environments) *http.ServeMux {
-	var sm http.ServeMux
+	sm := new(http.ServeMux)
 
-	sm.Handle(environmentsPath, e)
-	sm.Handle(recipesPath, s)
+	sm.Handle(environmentsPath, http.StripPrefix(environmentsPath, e))
+	sm.Handle(recipesPath, http.StripPrefix(recipesPath, s))
 
-	return &sm
+	return sm
 }
 
 func NewDev(s *spack.Spack, e *environments.Environments, path string) http.Handler {
