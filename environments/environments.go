@@ -24,6 +24,10 @@ const (
 	metaFile                = "meta.yml"
 	builtBySoftpackFile     = ".built_by_softpack"
 	generatedFromModuleFile = ".generated_from_module"
+
+	socketPath        = "/socket"
+	uploadPath        = "/upload"
+	resendPendingPath = "/resend-pending-builds"
 )
 
 type envStatus byte
@@ -197,10 +201,11 @@ func New(a *artefacts.Artefacts) (*Environments, error) {
 	}
 
 	e.socket.Environments = e
+	e.socket.conns = make(map[*conn]struct{})
 
-	e.ServeMux.Handle("/socket", websocket.Handler(e.socket.ServeConn))
-	e.ServeMux.HandleFunc("/upload", e.handleUpload)
-	e.ServeMux.HandleFunc("/resend-pending-builds", e.handleResend)
+	e.ServeMux.Handle(socketPath, websocket.Handler(e.socket.ServeConn))
+	e.ServeMux.HandleFunc(uploadPath, e.handleUpload)
+	e.ServeMux.HandleFunc(resendPendingPath, e.handleResend)
 
 	e.updateJSON()
 
@@ -217,7 +222,7 @@ func (e *Environments) updateJSON() {
 
 	var buf bytes.Buffer
 
-	json.NewEncoder(&buf).Encode(e)
+	json.NewEncoder(&buf).Encode(e.environments)
 
 	e.json = json.RawMessage(buf.Bytes())
 }
