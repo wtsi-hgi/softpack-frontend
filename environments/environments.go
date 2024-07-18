@@ -55,9 +55,14 @@ type environment struct {
 func environmentFromArtefacts(a artefacts.Environment, p string) (*environment, error) {
 	e := &environment{}
 	_, e.SoftPack = a[builtBySoftpackFile]
+	ef := a[environmentsFile]
+
+	if err := e.setSoftpackYaml(ef); err != nil {
+		return nil, err
+	}
 
 	if _, hasModule := a[moduleFile]; hasModule {
-		if err := parseEnvironment(a, e); err != nil {
+		if err := parseReadyEnvironment(a, e); err != nil {
 			return nil, err
 		}
 
@@ -69,42 +74,66 @@ func environmentFromArtefacts(a artefacts.Environment, p string) (*environment, 
 	return e, nil
 }
 
-func parseEnvironment(a artefacts.Environment, e *environment) error {
-	ef := a[environmentsFile]
-	m := a[metaFile]
+func parseReadyEnvironment(a artefacts.Environment, e *environment) error {
+	meta := a[metaFile]
 	readme := a[readmeFile]
 
-	if ef == nil || readme == nil {
+	if readme == nil {
 		return ErrBadEnvironment
 	}
 
-	var (
-		dp       descriptionPackages
-		sb       strings.Builder
-		metadata meta
-	)
-
-	if err := yaml.NewDecoder(ef).Decode(&dp); err != nil {
+	if err := e.setReadme(readme); err != nil {
 		return err
 	}
 
-	if m != nil {
-		if err := yaml.NewDecoder(m).Decode(&metadata); err != nil {
+	if meta != nil {
+		if err := e.setMeta(meta); err != nil {
 			return err
 		}
-
-		e.Tags = metadata.Tags
 	}
 
-	if _, err := io.Copy(&sb, readme); err != nil {
+	return nil
+}
+
+func (e *environment) setSoftpackYaml(r io.Reader) error {
+	var dp descriptionPackages
+
+	if err := yaml.NewDecoder(r).Decode(&dp); err != nil {
 		return err
 	}
 
 	e.Description = dp.Description
 	e.Packages = dp.Packages
+
+	return nil
+}
+
+func (e *environment) setReadme(r io.Reader) error {
+	var sb strings.Builder
+
+	if _, err := io.Copy(&sb, r); err != nil {
+		return err
+	}
+
 	e.ReadMe = sb.String()
 
 	return nil
+}
+
+func (e *environment) setMeta(r io.Reader) error {
+	var metadata meta
+
+	if err := yaml.NewDecoder(r).Decode(&metadata); err != nil {
+		return err
+	}
+
+	e.Tags = metadata.Tags
+
+	return nil
+}
+
+func (e *environment) setStatus(s envStatus) {
+	e.Status = s
 }
 
 type environments map[string]*environment
@@ -144,7 +173,7 @@ func (e environments) LoadFrom(a *artefacts.Artefacts, base string) error {
 type Environments struct {
 	artefacts *artefacts.Artefacts
 	socket
-	http.Handler
+	http.ServeMux
 
 	mu           sync.RWMutex
 	environments map[string]*environment
@@ -168,7 +197,8 @@ func New(a *artefacts.Artefacts) (*Environments, error) {
 	}
 
 	e.socket.Environments = e
-	e.Handler = websocket.Handler(e.socket.ServeConn)
+
+	e.ServeMux.Handle("/socket", websocket.Handler(e.socket.ServeConn))
 
 	e.updateJSON()
 
