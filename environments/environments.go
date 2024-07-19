@@ -56,7 +56,7 @@ type environment struct {
 	SoftPack    bool
 }
 
-func environmentFromArtefacts(a artefacts.Environment, p string) (*environment, error) {
+func environmentFromArtefacts(a artefacts.Environment) (*environment, error) {
 	e := &environment{}
 	_, e.SoftPack = a[builtBySoftpackFile]
 	ef := a[environmentsFile]
@@ -164,7 +164,7 @@ func (e environments) LoadFrom(a *artefacts.Artefacts, base string) error {
 
 			p := path.Join(base, entry, env)
 
-			e[p], err = environmentFromArtefacts(as, p)
+			e[p], err = environmentFromArtefacts(as)
 			if err != nil {
 				return err
 			}

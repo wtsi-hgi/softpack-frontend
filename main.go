@@ -11,6 +11,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/wtsi-hgi/softpack-frontend/artefacts"
 	"github.com/wtsi-hgi/softpack-frontend/environments"
+	"github.com/wtsi-hgi/softpack-frontend/ldap"
 	"github.com/wtsi-hgi/softpack-frontend/server"
 	"github.com/wtsi-hgi/softpack-frontend/spack"
 	"gopkg.in/yaml.v3"
@@ -44,6 +45,12 @@ type Config struct {
 		Port string `yaml:"Port"`
 		Path string `yaml:"Path"`
 	} `yaml:"Server"`
+	LDAP struct {
+		Server string `yaml:"Server"`
+		Base   string `yaml:"Base"`
+		Filter string `yaml:"Filter"`
+		Attr   string `yaml:"Attr"`
+	} `yaml:"LDAP"`
 }
 
 func run() error {
@@ -55,6 +62,13 @@ func run() error {
 	c, err := parseConfig(configFile)
 	if err != nil {
 		return fmt.Errorf("error reading config file: %w", err)
+	}
+
+	slog.Debug("connecting to ldap server", "url", c.LDAP.Server)
+
+	l, err := ldap.New(c.LDAP.Server, c.LDAP.Base, c.LDAP.Filter, c.LDAP.Attr)
+	if err != nil {
+		return fmt.Errorf("error connecting to ldap server: %w", err)
 	}
 
 	slog.Debug("loading spack repo", "version", c.Spack.Version)
@@ -91,9 +105,9 @@ func run() error {
 	if dev := os.Getenv("DEV"); dev == "" {
 		slog.Debug("creating dev server", "path", dev)
 
-		h = server.New(s, e)
+		h = server.New(s, e, l)
 	} else {
-		h = server.NewDev(s, e, dev)
+		h = server.NewDev(s, e, l, dev)
 	}
 
 	return startServer(c, h)
