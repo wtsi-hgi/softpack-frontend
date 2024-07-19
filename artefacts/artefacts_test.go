@@ -13,17 +13,17 @@ import (
 )
 
 var testFiles = map[string]string{
-	"users/userA/env-1/a-file":   "1",
-	"users/userA/env-1/b-file":   "contents",
-	"users/userA/env-2/a-file":   "2",
-	"users/userA/env-3/a-file":   "3",
-	"users/userB/env-4/a-file":   "4",
-	"users/userB/env-5/a-file":   "5",
-	"users/userC/env-1/a-file":   "6",
-	"groups/groupD/env-6/a-file": "7",
-	"groups/groupE/env-1/a-file": "AAA",
-	"groups/groupE/env-1/b-file": "BBB",
-	"groups/groupE/env-1/c-file": "CCC",
+	environments + "/" + UserDirectory + "/userA/env-1/a-file":   "1",
+	environments + "/" + UserDirectory + "/userA/env-1/b-file":   "contents",
+	environments + "/" + UserDirectory + "/userA/env-2/a-file":   "2",
+	environments + "/" + UserDirectory + "/userA/env-3/a-file":   "3",
+	environments + "/" + UserDirectory + "/userB/env-4/a-file":   "4",
+	environments + "/" + UserDirectory + "/userB/env-5/a-file":   "5",
+	environments + "/" + UserDirectory + "/userC/env-1/a-file":   "6",
+	environments + "/" + GroupDirectory + "/groupD/env-6/a-file": "7",
+	environments + "/" + GroupDirectory + "/groupE/env-1/a-file": "AAA",
+	environments + "/" + GroupDirectory + "/groupE/env-1/b-file": "BBB",
+	environments + "/" + GroupDirectory + "/groupE/env-1/c-file": "CCC",
 }
 
 func TestList(t *testing.T) {
