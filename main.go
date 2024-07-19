@@ -34,11 +34,13 @@ type Config struct {
 		Version         string `yaml:"Version"`
 		CustomRepo      string `yaml:"CustomRepo"`
 		UpdateFrequency int    `yaml:"UpdateFrequency"`
+		Cache           string `yaml:"Cache"`
 	} `yaml:"Spack"`
 	Artefacts struct {
 		Repo     string `yaml:"Repo"`
 		Username string `yaml:"Username"`
 		Password string `yaml:"Password"`
+		Cache    string `yaml:"Cache"`
 	} `yaml:"Artefacts"`
 	Server struct {
 		IP   string `yaml:"IP"`
@@ -71,24 +73,39 @@ func run() error {
 		return fmt.Errorf("error connecting to ldap server: %w", err)
 	}
 
-	slog.Debug("loading spack repo", "version", c.Spack.Version)
+	var (
+		spackOptions []spack.Option
+		spackDebug   = []any{"version", c.Spack.Version}
+	)
 
-	s, err := spack.New(plumbing.NewTagReferenceName(c.Spack.Version))
+	if c.Spack.CustomRepo != "" {
+		spackOptions = append(spackOptions, spack.Remote(c.Spack.CustomRepo, time.Duration(c.Spack.UpdateFrequency)*time.Second))
+		spackDebug = append(spackDebug, "remote", c.Spack.CustomRepo)
+	}
+
+	if c.Spack.Cache != "" {
+		spackOptions = append(spackOptions, spack.CacheDir(c.Spack.Cache))
+		spackDebug = append(spackDebug, "cache", c.Spack.Cache)
+	}
+
+	slog.Debug("loading spack repo", spackDebug...)
+
+	s, err := spack.New(plumbing.NewTagReferenceName(c.Spack.Version), spackOptions...)
 	if err != nil {
 		return fmt.Errorf("error loading spack repo: %w", err)
 	}
 
-	if c.Spack.CustomRepo != "" {
-		slog.Debug("watching spack custom repo", "repo", c.Spack.CustomRepo)
+	artefactOptions := []artefacts.Option{artefacts.Remote(c.Artefacts.Repo)}
+	artefactsDebug := []any{"repo", c.Artefacts.Repo}
 
-		if err = s.WatchRemote(c.Spack.CustomRepo, time.Duration(c.Spack.UpdateFrequency)*time.Second); err != nil {
-			return fmt.Errorf("error watching custom repo: %w", err)
-		}
+	if c.Artefacts.Cache != "" {
+		artefactOptions = append(artefactOptions, artefacts.FS(c.Artefacts.Cache))
+		artefactsDebug = append(artefactsDebug, "cache", c.Artefacts.Cache)
 	}
 
-	slog.Debug("loading artefacts", "repo", c.Artefacts.Repo)
+	slog.Debug("loading artefacts", artefactsDebug...)
 
-	a, err := artefacts.New(artefacts.Remote(c.Artefacts.Repo))
+	a, err := artefacts.New(artefactOptions...)
 	if err != nil {
 		return fmt.Errorf("error loading artefacts: %w", err)
 	}

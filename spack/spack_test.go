@@ -33,7 +33,7 @@ func TestRecipeLoad(t *testing.T) {
 		customPackages + "/def/package.py": "version(\"dev\")\nversion(\"3.1.4\")",
 	})
 
-	if err := s.WatchRemote(cr.URL(), -1); err != nil {
+	if err := s.watchRemote(cr.URL(), -1); err != nil {
 		t.Fatalf("unexpected error getting remote: %s", err)
 	}
 

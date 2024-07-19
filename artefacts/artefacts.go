@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"log/slog"
 	"path"
 	"path/filepath"
 	"sync"
@@ -34,14 +35,39 @@ func New(opts ...Option) (*Artefacts, error) {
 		opt(&o)
 	}
 
+	var head *plumbing.Reference
+
 	if o.storage == nil {
 		o.storage = memory.NewStorage()
 	}
 
-	var head *plumbing.Reference
-
 	r, err := git.Clone(o.storage, memfs.New(), &o.CloneOptions)
-	if !errors.Is(err, transport.ErrEmptyRemoteRepository) {
+	if errors.Is(err, git.ErrRepositoryAlreadyExists) {
+		slog.Debug("opening cached artefact repo")
+
+		r, err = git.Open(o.storage, memfs.New())
+		if err != nil {
+			return nil, err
+		}
+
+		head, err = r.Head()
+		if err != nil {
+			return nil, err
+		}
+
+		w, err := r.Worktree()
+		if err != nil {
+			return nil, err
+		}
+
+		slog.Debug("updating artefact repo")
+
+		if err = w.Pull(&git.PullOptions{
+			Force: true,
+		}); err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
+			return nil, err
+		}
+	} else if !errors.Is(err, transport.ErrEmptyRemoteRepository) {
 		if err != nil {
 			return nil, err
 		}
