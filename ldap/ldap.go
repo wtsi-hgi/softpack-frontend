@@ -97,5 +97,9 @@ func (l *ldap) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if groups == nil {
+		groups = make([]string, 0)
+	}
+
 	json.NewEncoder(w).Encode(groups)
 }
