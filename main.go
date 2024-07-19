@@ -14,6 +14,7 @@ import (
 	"github.com/wtsi-hgi/softpack-frontend/ldap"
 	"github.com/wtsi-hgi/softpack-frontend/server"
 	"github.com/wtsi-hgi/softpack-frontend/spack"
+	"github.com/wtsi-hgi/softpack-frontend/users"
 	"gopkg.in/yaml.v3"
 )
 
@@ -66,11 +67,19 @@ func run() error {
 		return fmt.Errorf("error reading config file: %w", err)
 	}
 
-	slog.Debug("connecting to ldap server", "url", c.LDAP.Server)
+	var u http.Handler
 
-	l, err := ldap.New(c.LDAP.Server, c.LDAP.Base, c.LDAP.Filter, c.LDAP.Attr)
-	if err != nil {
-		return fmt.Errorf("error connecting to ldap server: %w", err)
+	if c.LDAP.Server != "" {
+		slog.Debug("connecting to ldap server", "url", c.LDAP.Server)
+
+		l, err := ldap.New(c.LDAP.Server, c.LDAP.Base, c.LDAP.Filter, c.LDAP.Attr)
+		if err != nil {
+			return fmt.Errorf("error connecting to ldap server: %w", err)
+		}
+
+		u = l
+	} else {
+		u = users.New()
 	}
 
 	var (
@@ -122,9 +131,9 @@ func run() error {
 	if dev := os.Getenv("DEV"); dev == "" {
 		slog.Debug("creating dev server", "path", dev)
 
-		h = server.New(s, e, l)
+		h = server.New(s, e, u)
 	} else {
-		h = server.NewDev(s, e, l, dev)
+		h = server.NewDev(s, e, u, dev)
 	}
 
 	return startServer(c, h)
