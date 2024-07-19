@@ -11,36 +11,46 @@ import (
 )
 
 const (
-	environmentsPath = "/environments"
+	environmentsPath = "/envs"
 	recipesPath      = "/recipes"
 	ldapPath         = "/ldap"
+	aboutPage        = "/about"
+	environmentsPage = "/environments"
+	tagsPage         = "/tags"
+	createPage       = "/create"
 )
 
 //go:embed static
 var static embed.FS
 
 func New(s *spack.Spack, e *environments.Environments, l http.Handler) http.Handler {
-	sm := mux(s, e, l)
-
-	sm.Handle("/", http.FileServer(http.FS(static)))
-
-	return sm
+	return mux(s, e, l, http.FileServer(&virtualPages{http.FS(static)}))
 }
 
-func mux(s *spack.Spack, e *environments.Environments, l http.Handler) *http.ServeMux {
+func mux(s, e, l, files http.Handler) http.Handler {
 	sm := new(http.ServeMux)
 
-	sm.Handle(environmentsPath, http.StripPrefix(environmentsPath, e))
+	sm.Handle(environmentsPath+"/", http.StripPrefix(environmentsPath, e))
 	sm.Handle(recipesPath, http.StripPrefix(recipesPath, s))
 	sm.Handle(ldapPath, http.StripPrefix(ldapPath, l))
+	sm.Handle("/", files)
 
 	return sm
 }
 
 func NewDev(s *spack.Spack, e *environments.Environments, l http.Handler, path string) http.Handler {
-	sm := mux(s, e, l)
+	return mux(s, e, l, http.FileServer(&virtualPages{http.FS(tsserver.WrapFS(os.DirFS(path)))}))
+}
 
-	sm.Handle("/", http.FileServer(http.FS(tsserver.WrapFS(os.DirFS(path)))))
+type virtualPages struct {
+	http.FileSystem
+}
 
-	return sm
+func (v *virtualPages) Open(path string) (http.File, error) {
+	switch path {
+	case aboutPage, environmentsPage, tagsPage, createPage:
+		path = "/index.html"
+	}
+
+	return v.FileSystem.Open(path)
 }
