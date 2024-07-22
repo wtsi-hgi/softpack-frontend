@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	environments   = "environments"
+	Environments   = "environments"
 	UserDirectory  = "users"
 	GroupDirectory = "groups"
 )
@@ -105,7 +105,7 @@ func (a *Artefacts) getTree(path ...string) (*object.Tree, error) {
 		return nil, err
 	}
 
-	tree, err = tree.Tree(environments)
+	tree, err = tree.Tree(Environments)
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +224,7 @@ func (a *Artefacts) AddFilesToEnv(usersOrGroups, userOrGroup, env string, files 
 	}
 
 	for name, file := range files {
-		if err = addFileToWorktree(w, filepath.Join(environments, usersOrGroups, userOrGroup, env, name), file); err != nil {
+		if err = addFileToWorktree(w, filepath.Join(Environments, usersOrGroups, userOrGroup, env, name), file); err != nil {
 			return err
 		}
 	}
@@ -272,7 +272,7 @@ func (a *Artefacts) RemoveEnvironment(usersOrGroups, userOrGroup, env string) er
 		return err
 	}
 
-	if err = w.RemoveGlob(filepath.Join(environments, usersOrGroups, userOrGroup, env, "*")); err != nil {
+	if err = w.RemoveGlob(filepath.Join(Environments, usersOrGroups, userOrGroup, env, "*")); err != nil {
 		return err
 	}
 
