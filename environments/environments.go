@@ -12,8 +12,8 @@ import (
 	"sync"
 
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/gorilla/websocket"
 	"github.com/wtsi-hgi/softpack-frontend/artefacts"
-	"golang.org/x/net/websocket"
 	"gopkg.in/yaml.v3"
 )
 
@@ -212,15 +212,28 @@ func New(a *artefacts.Artefacts) (*Environments, error) {
 	}
 
 	e.socket.Environments = e
-	e.socket.conns = make(map[*conn]struct{})
+	e.socket.conns = make(map[*websocket.Conn]struct{})
 
-	e.ServeMux.Handle(socketPath, websocket.Handler(e.socket.ServeConn))
+	e.ServeMux.HandleFunc(socketPath, e.handleSocket)
 	e.ServeMux.HandleFunc(uploadPath, e.handleUpload)
 	e.ServeMux.HandleFunc(resendPendingPath, e.handleResend)
 
 	e.updateJSON()
 
 	return e, nil
+}
+
+func (e *Environments) handleSocket(w http.ResponseWriter, r *http.Request) {
+	var upgrade websocket.Upgrader
+
+	c, err := upgrade.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+
+	defer c.Close()
+
+	e.socket.ServeConn(c)
 }
 
 func (e *Environments) handleUpload(w http.ResponseWriter, r *http.Request) {}

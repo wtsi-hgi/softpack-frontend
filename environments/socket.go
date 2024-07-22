@@ -6,7 +6,7 @@ import (
 	"errors"
 	"sync"
 
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
 	"vimagination.zapto.org/jsonrpc"
 )
 
@@ -14,27 +14,50 @@ type socket struct {
 	*Environments
 
 	mu    sync.RWMutex
-	conns map[*conn]struct{}
+	conns map[*websocket.Conn]struct{}
 }
 
-func (s *socket) ServeConn(wconn *websocket.Conn) {
-	var c conn
+type jsonError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    any    `json:"data,omitempty"`
+}
 
+type response struct {
+	ID     int             `json:"id"`
+	Result json.RawMessage `json:"result,omitempty"`
+	Error  *jsonError      `json:"error,omitempty"`
+}
+
+type request struct {
+	ID     int    `json:"id"`
+	Method string `json:"method"`
+	Params any    `json:"params,omitempty"`
+}
+
+func (s *socket) ServeConn(conn *websocket.Conn) {
 	s.Environments.mu.RLock()
 	toSend := encodeBroadcast(s.json)
 	s.Environments.mu.RUnlock()
 
+	conn.WriteJSON(toSend)
+
 	s.mu.Lock()
-	c.rpc = jsonrpc.New(wconn, &c)
-	s.conns[&c] = struct{}{}
+	s.conns[conn] = struct{}{}
 	s.mu.Unlock()
 
-	c.rpc.SendData(toSend)
+	for {
+		var request request
 
-	c.rpc.Handle()
+		if err := conn.ReadJSON(&request); err != nil {
+			break
+		}
+
+		// handle request
+	}
 
 	s.mu.Lock()
-	delete(s.conns, &c)
+	delete(s.conns, conn)
 	s.mu.Unlock()
 }
 
@@ -54,17 +77,9 @@ func (s *socket) SendToAll(data any) {
 
 	s.mu.RLock()
 	for conn := range s.conns {
-		go conn.rpc.SendData(toSend)
+		go conn.WriteJSON(toSend)
 	}
 	s.mu.RUnlock()
-}
-
-type conn struct {
-	rpc *jsonrpc.Server
-}
-
-func (conn) HandleRPC(method string, data json.RawMessage) (any, error) {
-	return nil, ErrUnknownEndpoint
 }
 
 var ErrUnknownEndpoint = errors.New("unknown endpoint")
