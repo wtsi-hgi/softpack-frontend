@@ -28,7 +28,7 @@ class Environment {
 	#name: string;
 	#version: string;
 
-	constructor(path: string, envData: NonNullable<Subscribed<typeof environmentUpdate>[""]>){
+	constructor(path: string, envData: NonNullable<Subscribed<typeof environmentUpdate>[""]>) {
 		const pathParts = path.split("/"),
 		      nameVer = pathParts.pop()!.split("-"),
 		      version = nameVer.length > 1 ? nameVer.pop()! : "",
@@ -57,7 +57,7 @@ class Environment {
 		this.#version = version;
 		this.#state = envData.Status;
 		this.#packages = envData.Packages.map(pkg => pkg.toLowerCase().split("@", 2) as [string, string?]);
-		this.#sortKey = Array.from(version.matchAll(/\d+/g)).reduce((s, [p]) => s + p.padStart(20, "0"), name) + version.replaceAll(/\d/g, "")+pathParts.join("/");
+		this.#sortKey = Array.from(version.matchAll(/\d+/g)).reduce((s, [p]) => s + p.padStart(20, "0"), name) + version.replaceAll(/\d/g, "") + pathParts.join("/");
 
 		otherVersions.add(this);
 	}
@@ -228,7 +228,7 @@ class FilterList extends NodeMap<string, {[node]: MultiOption, name: string, cou
 	constructor(name: Exclude<keyof Filter, "terms" | "building">) {
 		super(multiselect(), (a, b) => stringSort(a.name, b.name));
 
-		amendNode(this, {"onchange": function(this: MultiSelect) {
+		amendNode(this, {"onchange": function (this: MultiSelect) {
 			filter[name] = this.value as string[];
 
 			environmentFilter.filter(filter);
@@ -237,9 +237,6 @@ class FilterList extends NodeMap<string, {[node]: MultiOption, name: string, cou
 
 	addEntry(name: string) {
 		const entry = this.get(name) ?? setAndReturn(this, name, {[node]: multioption(name), name, count: 0});
-
-		if (!entry.count) {
-		}
 
 		entry.count++;
 	}
@@ -274,7 +271,7 @@ const statuses = ["building", "failed", "ready"],
       envSorter = (a: Environment, b: Environment) => a.compare(b),
       environments = new NodeMap<string, Environment, HTMLUListElement>(ul({"id": "environments"}), envSorter),
       environmentFilter = environmentContainer(),
-      mine = input({"type": "checkbox", "id": "showMine", "checked": username.transform(() => false), "onclick": function(this: HTMLInputElement) {
+      mine = input({"type": "checkbox", "id": "showMine", "checked": username.transform(() => false), "onclick": function (this: HTMLInputElement) {
 	if (this.checked) {
 		users[node].value = [username()];
 		groups[node].value = groupList();
@@ -284,17 +281,17 @@ const statuses = ["building", "failed", "ready"],
 	}
       }}),
       base = main([
-	input({"type": "search", "id": "filter", "placeholder": "Search for environments by name of package[@version]", "oninput": function(this: HTMLInputElement) {
+	input({"type": "search", "id": "filter", "placeholder": "Search for environments by name of package[@version]", "oninput": function (this: HTMLInputElement) {
 		filter.terms = this.value.trim().split(/\s+/g).filter(t => t).map(p => p.split("@", 2) as [string, string?]);
 
 		environmentFilter.filter(filter);
 	}}),
-	amendNode(users, {"placeholder": "Filter by user", "onchange": function(this: MultiSelect) {
+	amendNode(users, {"placeholder": "Filter by user", "onchange": function (this: MultiSelect) {
 		if (!this.value.includes(username())) {
 			mine.checked = false;
 		}
 	}}),
-	amendNode(groups, {"placeholder": "Filter by group", "onchange": function(this: MultiSelect) {
+	amendNode(groups, {"placeholder": "Filter by group", "onchange": function (this: MultiSelect) {
 		const selected = this.value;
 
 		for (const group of groupList()) {
@@ -306,11 +303,11 @@ const statuses = ["building", "failed", "ready"],
 		}
 	}}),
 	amendNode(tags, {"placeholder": "Filter by tag"}),
-	input({"type": "checkbox", "id": "showBuilding", "onclick": function(this: HTMLInputElement) {
+	input({"type": "checkbox", "id": "showBuilding", "onclick": function (this: HTMLInputElement) {
 		environmentFilter.setShowBuilding(this.checked);
 	}}),
 	label({"for": "showBuilding"}, "Building"),
-	input({"type": "checkbox", "id": "showAllVersions", "onclick": function(this: HTMLInputElement) {
+	input({"type": "checkbox", "id": "showAllVersions", "onclick": function (this: HTMLInputElement) {
 		environmentFilter.setShowAllVersion(this.checked);
 	}}),
 	label({"for": "showAllVersions"}, "All Versions"),
