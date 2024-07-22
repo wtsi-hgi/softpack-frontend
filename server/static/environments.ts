@@ -344,7 +344,13 @@ add({
 	"multi-select": {
 		"display": "inline-block",
 		"margin": "0 1em",
-		"width": "160px"
+		"width": "160px",
+		"--removeXColor": "#ebebeb",
+		"--removeBackgroundColor": "rgb(255, 94, 123)",
+		"--removeBorderColor": "rgb(255, 94, 123)",
+		"--selectedBackground": "#ebebeb",
+		"--selectedBorderRadius": "16px",
+		"--selectedPadding": "0 8px",
 	},
 
 	"label": {
