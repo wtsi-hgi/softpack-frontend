@@ -11,6 +11,11 @@ import (
 	ldapapi "github.com/go-ldap/ldap/v3"
 )
 
+type ldapConn interface {
+	IsClosing() bool
+	Search(*ldapapi.SearchRequest) (*ldapapi.SearchResult, error)
+}
+
 type ldap struct {
 	filter    *template.Template
 	url       string
@@ -18,11 +23,15 @@ type ldap struct {
 	groupAttr string
 
 	mu   sync.Mutex
-	conn *ldapapi.Conn
+	conn ldapConn
+}
+
+var dial func(string) (ldapConn, error) = func(url string) (ldapConn, error) {
+	return ldapapi.DialURL(url)
 }
 
 func New(url, basedn, filter, groupAttr string) (http.Handler, error) {
-	c, err := ldapapi.DialURL(url)
+	c, err := dial(url)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +59,7 @@ func (l *ldap) getUserGroups(user string) ([]string, error) {
 	l.filter.Execute(&filter, user)
 
 	if l.conn.IsClosing() {
-		conn, err := ldapapi.DialURL(l.url)
+		conn, err := dial(l.url)
 		if err != nil {
 			return nil, err
 		}
