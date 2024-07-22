@@ -31,6 +31,8 @@ type Artefacts struct {
 	head *plumbing.Reference
 }
 
+var debug = slog.Debug
+
 func New(opts ...Option) (*Artefacts, error) {
 	var o cloneOptions
 
@@ -48,7 +50,7 @@ func New(opts ...Option) (*Artefacts, error) {
 
 	r, err := git.Clone(o.storage, m, &o.CloneOptions)
 	if errors.Is(err, git.ErrRepositoryAlreadyExists) {
-		slog.Debug("opening cached artefact repo")
+		debug("opening cached artefact repo")
 
 		r, err = git.Open(o.storage, m)
 		if err != nil {
@@ -65,7 +67,7 @@ func New(opts ...Option) (*Artefacts, error) {
 			return nil, err
 		}
 
-		slog.Debug("updating artefact repo")
+		debug("updating artefact repo")
 
 		if err = w.Pull(&git.PullOptions{
 			Force: true,

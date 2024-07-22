@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"errors"
 	"io"
+	"log/slog"
 	"slices"
 	"strings"
 	"testing"
@@ -158,5 +159,34 @@ func TestRemoveEnvironment(t *testing.T) {
 
 	if _, err = r.GetEnv(UserDirectory, "userA", "env-1"); !errors.Is(err, object.ErrDirectoryNotFound) {
 		t.Errorf("expecting error %q, got %q", object.ErrDirectoryNotFound, err)
+	}
+}
+
+func TestCache(t *testing.T) {
+	g := git.New(t)
+	g.Add(t, testFiles)
+
+	cacheDir := t.TempDir()
+
+	var messages []string
+
+	debug = func(msg string, args ...any) {
+		messages = append(messages, msg)
+	}
+
+	defer func() { debug = slog.Debug }()
+
+	_, err := New(Remote(g.URL()), FS(cacheDir))
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if len(messages) != 0 {
+		t.Fatalf("read unexpected debug messages: %v", messages)
+	}
+
+	_, err = New(Remote(g.URL()), FS(cacheDir))
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if len(messages) != 2 {
+		t.Fatalf("expected to read 2 debug messages, got: %v", messages)
 	}
 }
