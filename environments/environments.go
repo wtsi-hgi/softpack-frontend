@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"path"
 	"strings"
@@ -57,9 +58,15 @@ type environment struct {
 }
 
 func environmentFromArtefacts(a artefacts.Environment) (*environment, error) {
-	e := &environment{}
+	e := &environment{
+		Tags: make([]string, 0),
+	}
 	_, e.SoftPack = a[builtBySoftpackFile]
 	ef := a[environmentsFile]
+
+	if ef == nil {
+		return nil, ErrBadEnvironment
+	}
 
 	if err := e.setSoftpackYaml(ef); err != nil {
 		return nil, err
@@ -164,10 +171,14 @@ func (e environments) LoadFrom(a *artefacts.Artefacts, base string) error {
 
 			p := path.Join(base, entry, env)
 
-			e[p], err = environmentFromArtefacts(as)
+			ep, err := environmentFromArtefacts(as)
 			if err != nil {
-				return err
+				slog.Error("failed to load environment", "env", path.Join(base, entry, env), "err", err)
+
+				continue
 			}
+
+			e[p] = ep
 		}
 	}
 
