@@ -298,7 +298,7 @@ const statuses = ["building", "failed", "ready"],
 		const selected = this.value;
 
 		for (const group of groupList()) {
-			if (!selected.includes(group)) {
+			if (!selected.includes(group) && groups.has(group)) {
 				mine.checked = false;
 
 				break;
