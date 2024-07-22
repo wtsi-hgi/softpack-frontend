@@ -30,6 +30,8 @@ const (
 	customPackages = "packages"
 )
 
+var debug = slog.Debug
+
 type Spack struct {
 	builtIn  map[string]recipe
 	cacheDir string
@@ -56,9 +58,9 @@ func New(spackVersion plumbing.ReferenceName, opts ...Option) (*Spack, error) {
 			return nil, err
 		}
 
-		slog.Debug("loaded builtin recipes from repo", "recipeCount", len(builtinRecipes))
+		debug("loaded builtin recipes from repo", "recipeCount", len(builtinRecipes))
 	} else {
-		slog.Debug("loaded builtin recipes from cache", "recipeCount", len(builtinRecipes))
+		debug("loaded builtin recipes from cache", "recipeCount", len(builtinRecipes))
 	}
 
 	s := &Spack{
@@ -119,7 +121,7 @@ func loadBuiltinFromRepo(spackVersion plumbing.ReferenceName, cacheDir string) (
 	}
 
 	if cacheDir != "" {
-		slog.Debug("writing builting recipes to cache", "recipeCount", len(builtinRecipes))
+		debug("writing builtin recipes to cache", "recipeCount", len(builtinRecipes))
 
 		if err := writeToCache(cachePath(cacheDir, string(spackVersion)), builtinRecipes); err != nil {
 			return nil, err
@@ -216,7 +218,7 @@ func parseRecipeVersions(r io.Reader) []string {
 func (s *Spack) watchRemote(url string, timeout time.Duration) error {
 	if s.cacheDir != "" {
 		if err := s.loadRemoteCache(url); err == nil {
-			slog.Debug("loaded remote recipes from cache")
+			debug("loaded remote recipes from cache")
 
 			go s.getRemote(url, timeout)
 
@@ -224,7 +226,7 @@ func (s *Spack) watchRemote(url string, timeout time.Duration) error {
 		}
 	}
 
-	slog.Debug("loading remote recipes from repo")
+	debug("loading remote recipes from repo")
 
 	return s.getRemote(url, timeout)
 }
@@ -255,9 +257,9 @@ func (s *Spack) getRemote(url string, timeout time.Duration) error {
 				if err := w.Pull(&git.PullOptions{
 					Force: true,
 				}); err != nil {
-					slog.Debug("error pulling remote recipes", "err", err)
+					debug("error pulling remote recipes", "err", err)
 				} else if err = s.updateRemote(url, fs); err != nil {
-					slog.Debug("error parsing remote recipes", "err", err)
+					debug("error parsing remote recipes", "err", err)
 				}
 			}
 		}()
@@ -293,7 +295,7 @@ func (s *Spack) updateRemote(url string, fs billy.Filesystem) error {
 }
 
 func (s *Spack) cacheRemoteRecipes(url string, recipes map[string]recipe) {
-	slog.Debug("saving remote recipes to cache", "recipeCount", len(recipes))
+	debug("saving remote recipes to cache", "recipeCount", len(recipes))
 	writeToCache(cachePath(s.cacheDir, url), recipes)
 }
 
