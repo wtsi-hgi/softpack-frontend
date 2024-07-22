@@ -289,12 +289,12 @@ const statuses = ["building", "failed", "ready"],
 
 		environmentFilter.filter(filter);
 	}}),
-	amendNode(users, {"toggle": true, "placeholder": "Users", "onchange": function(this: MultiSelect) {
+	amendNode(users, {"placeholder": "Filter by user", "onchange": function(this: MultiSelect) {
 		if (!this.value.includes(username())) {
 			mine.checked = false;
 		}
 	}}),
-	amendNode(groups, {"placeholder": "Groups", "onchange": function(this: MultiSelect) {
+	amendNode(groups, {"placeholder": "Filter by group", "onchange": function(this: MultiSelect) {
 		const selected = this.value;
 
 		for (const group of groupList()) {
@@ -305,7 +305,7 @@ const statuses = ["building", "failed", "ready"],
 			}
 		}
 	}}),
-	amendNode(tags, {"placeholder": "Tags"}),
+	amendNode(tags, {"placeholder": "Filter by tag"}),
 	input({"type": "checkbox", "id": "showBuilding", "onclick": function(this: HTMLInputElement) {
 		environmentFilter.setShowBuilding(this.checked);
 	}}),
