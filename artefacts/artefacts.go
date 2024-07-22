@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -25,6 +26,7 @@ const (
 
 type Artefacts struct {
 	mu   sync.RWMutex
+	fs   billy.Filesystem
 	repo *git.Repository
 	head *plumbing.Reference
 }
@@ -42,11 +44,13 @@ func New(opts ...Option) (*Artefacts, error) {
 		o.storage = memory.NewStorage()
 	}
 
-	r, err := git.Clone(o.storage, memfs.New(), &o.CloneOptions)
+	m := memfs.New()
+
+	r, err := git.Clone(o.storage, m, &o.CloneOptions)
 	if errors.Is(err, git.ErrRepositoryAlreadyExists) {
 		slog.Debug("opening cached artefact repo")
 
-		r, err = git.Open(o.storage, memfs.New())
+		r, err = git.Open(o.storage, m)
 		if err != nil {
 			return nil, err
 		}
@@ -81,6 +85,7 @@ func New(opts ...Option) (*Artefacts, error) {
 
 	return &Artefacts{
 		repo: r,
+		fs:   m,
 		head: head,
 	}, nil
 }
@@ -151,10 +156,21 @@ func (a *Artefacts) GetEnv(usersOrGroups, userOrGroup, env string) (Environment,
 		return nil, err
 	}
 
-	return a.entriesToEnvironment(path.Join(usersOrGroups, userOrGroup, env), f.Entries)
+	var files []*object.File
+
+	for _, entry := range f.Entries {
+		f, err := f.TreeEntryFile(&entry)
+		if err != nil {
+			return nil, err
+		}
+
+		files = append(files, f)
+	}
+
+	return a.entriesToEnvironment(path.Join(usersOrGroups, userOrGroup, env), files)
 }
 
-func (a *Artefacts) entriesToEnvironment(base string, entries []object.TreeEntry) (Environment, error) {
+func (a *Artefacts) entriesToEnvironment(base string, entries []*object.File) (Environment, error) {
 	e := make(Environment, len(entries))
 
 	for _, entry := range entries {
@@ -169,28 +185,16 @@ func (a *Artefacts) entriesToEnvironment(base string, entries []object.TreeEntry
 	return e, nil
 }
 
-func (a *Artefacts) createFileFromEntry(base string, entry object.TreeEntry) (fs.File, error) {
-	filename := path.Join(base, entry.Name)
-
-	c, err := a.getLatestCommitFromPath(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	f, err := c.File(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	r, err := f.Reader()
+func (a *Artefacts) createFileFromEntry(base string, entry *object.File) (fs.File, error) {
+	r, err := entry.Reader()
 	if err != nil {
 		return nil, err
 	}
 
 	return &environmentFile{
-		name:       entry.Name,
-		mtime:      c.Author.When,
-		size:       f.Size,
+		name: entry.Name,
+		//		mtime:      c.Author.When,
+		size:       entry.Size,
 		ReadCloser: r,
 	}, nil
 }
