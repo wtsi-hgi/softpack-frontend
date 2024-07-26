@@ -95,7 +95,7 @@ const style = [new CSS().add({
 			"display": "none"
 		},
 
-		" input": {
+		">input": {
 			"background-color": "transparent",
 			"box-sizing": "border-box",
 			"border": 0,
@@ -135,20 +135,26 @@ const style = [new CSS().add({
 			"overscroll-behavior": "none",
 			"z-index": 1000,
 
-			" li.disabled": {
-				"background": "var(--optionDisabledBackground, #fff)",
-				"color": "var(--optionDisabledColor, #888)"
-			},
+			">li": {
+				".disabled": {
+					"background": "var(--optionDisabledBackground, #fff)",
+					"color": "var(--optionDisabledColor, #888)"
+				},
 
-			" li:not(.disabled):hover": {
-				"background": "var(--optionHoverBackground, #000)",
-				"color": "var(--optionHoverColor, #fff)",
-				"cursor": "pointer"
-			},
+				".filter": {
+					"display": "none"
+				},
 
-			" li.selected": {
-				"background": "var(--optionSelectedBackground, #888)",
-				"color": "var(--optionSelectedColor, #fff)"
+				":not(.disabled):hover": {
+					"background": "var(--optionHoverBackground, #000)",
+					"color": "var(--optionHoverColor, #fff)",
+					"cursor": "pointer"
+				},
+
+				".selected": {
+					"background": "var(--optionSelectedBackground, #888)",
+					"color": "var(--optionSelectedColor, #fff)"
+				}
 			},
 
 			":not(.toggle) .selected": {
@@ -201,8 +207,10 @@ const style = [new CSS().add({
  * | --removeXColor               | #f00           | Sets the colour of the X in the remove icon. |
  * | --selectedBackground         | None           | Sets the colour of the selected options wrapper element. |
  * | --selectedBorder             | None           | Sets the border of the selected options wrapper element. |
+ * | --selectedBorderRadius       | 0              | Sets the border radius of the selected options wrapper element. |
  * | --selectedHoverBackground    | None           | Sets the colour of the selected options wrapper element when it is hovered over. |
  * | --selectedHoverBorder        | None           | Sets the border of the selected options wrapper element when it is hovered over. |
+ * | --selectedPadding            | 0              | Sets the padding of the selected options wrapper element. |
  */
 export class MultiSelect extends HTMLElement {
 	#options: HTMLUListElement;
@@ -211,18 +219,34 @@ export class MultiSelect extends HTMLElement {
 	#selected = new Map<MultiOption, HTMLDivElement>();
 	#liToOption = new Map<HTMLLIElement, MultiOption>();
 	#optionToLI = new Map<MultiOption, HTMLLIElement>();
+	#liContents: [HTMLLIElement, String][] = [];
+	#filter = "";
 
 	constructor() {
 		super();
 
-		const self = this;
+		const filterInput = (value: string) => setTimeout(() => {
+			this.#filter = value;
+
+			const children: Element[] = [];
+
+			for (const [child, contents] of this.#liContents) {
+				if (contents.includes(value)) {
+					children.push(child);
+				}
+			}
+
+			clearNode(this.#options, children);
+		      });
 
 		amendNode(this.attachShadow({"mode": "closed", "slotAssignment": "manual", "delegatesFocus": true}), [
 			this.#selectedDiv = div({"id": "selected"}),
 			div({"id": "control"}, [
 				this.#input = input({"autofocus": true, "onfocus": () => this.#setOptionsPos(), "oninput": function(this: HTMLInputElement) {
-					for (const child of self.#options.children) {
-						amendNode(child, {"style": child.textContent?.includes(this.value) ? false : "display: none"});
+					filterInput(this.value);
+				}, "onkeydown": function(this: HTMLInputElement, e: KeyboardEvent) {
+					if (e.key === "Escape") {
+						filterInput(this.value = "");
 					}
 				}}),
 				this.#options = ul({"onclick": (e: MouseEvent) => this.#handleSelect(e.target as HTMLLIElement), "tabindex": -1})
@@ -231,8 +255,28 @@ export class MultiSelect extends HTMLElement {
 
 		this.#parseContent();
 
-		new MutationObserver(() => this.#parseContent()).observe(this, {
-			"attributeFilter": ["value", "disabled", "label", "select"],
+		new MutationObserver(ms => {
+			let update = false;
+
+			for (const m of ms) {
+				if (m.type === "childList") {
+					update = true;
+
+					break;
+				} else if (m.attributeName !== "value") {
+					update = true;
+				}
+			}
+
+			if (update) {
+				this.#parseContent();
+			} else {
+				this.dispatchEvent(new Event("change"));
+			}
+
+			this.#parseContent();
+		}).observe(this, {
+			"attributeFilter": ["value", "disabled", "label", "selected"],
 			"childList": true,
 			"subtree": true
 		});
@@ -321,6 +365,7 @@ export class MultiSelect extends HTMLElement {
 
 		this.#optionToLI = new Map();
 		this.#liToOption.clear();
+		this.#liContents.splice(0, this.#liContents.length);
 
 		for (const elem of this.children) {
 			if (elem instanceof MultiOption) {
@@ -329,9 +374,13 @@ export class MultiSelect extends HTMLElement {
 				      state = elem.hasAttribute("disabled") ? disabled : enabled,
 				      item = existing?.innerText === text ? amendNode(existing, state) : li(state, text);
 
-				newElems.push(item);
+				if (text.includes(this.#filter)) {
+					newElems.push(item);
+				}
+
 				this.#optionToLI.set(elem, item);
 				this.#liToOption.set(item, elem);
+				this.#liContents.push([item, text]);
 
 				if (elem.hasAttribute("selected")) {
 					this.#handleSelect(item);
@@ -352,9 +401,7 @@ export class MultiSelect extends HTMLElement {
 		const val: string[] = [];
 
 		for (const e of this.#selected.keys()) {
-			const o = this.#optionToLI.get(e)!;
-
-			val.push(o.getAttribute("value") ?? o.innerText);
+			val.push(e.getAttribute("value") ?? e.innerText);
 		}
 
 		return val;
