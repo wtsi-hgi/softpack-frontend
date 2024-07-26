@@ -6,6 +6,7 @@ import {div, h2, input, label, li, main, span, ul} from './lib/html.js';
 import {multioption, multiselect} from './lib/multiselect.js';
 import {setAndReturn} from './lib/misc.js';
 import {NodeMap, node, stringSort} from './lib/nodes.js';
+import {goto} from './lib/router.js';
 import {environmentUpdate} from './rpc.js';
 import {groupList, username} from './users.js';
 
@@ -20,13 +21,15 @@ type Filter = {
 class Environment {
 	[node]: HTMLLIElement;
 	#sortKey: string;
-	#tags: string[];
+	tags: string[];
 	#state: number;
-	#user = "";
-	#group = "";
-	#packages: [string, string?][];
-	#name: string;
-	#version: string;
+	user = "";
+	group = "";
+	packages: [string, string?][];
+	name: string;
+	version: string;
+	readme: string;
+	description: string;
 
 	constructor(path: string, envData: NonNullable<Subscribed<typeof environmentUpdate>[""]>) {
 		const pathParts = path.split("/"),
@@ -36,28 +39,32 @@ class Environment {
 		      noVersion = pathParts.join("/") + "/" + name,
 		      otherVersions = versionMap.get(noVersion) ?? setAndReturn(versionMap, noVersion, new Versions(filter));
 
-		for (const tag of this.#tags = envData.Tags) {
+		for (const tag of this.tags = envData.Tags) {
 			tags.addEntry(tag);
 		}
 
 		if (pathParts[0] === "users") {
-			users.addEntry(this.#user = pathParts[1]);
+			users.addEntry(this.user = pathParts[1]);
 		} else if (pathParts[0] === "groups") {
-			groups.addEntry(this.#group = pathParts[1]);
+			groups.addEntry(this.group = pathParts[1]);
 		}
 
-		this[node] = li({"class": `${envData.SoftPack ? "softpack" : "module"} ${statuses[envData.Status]}`}, [
+		this[node] = li({"class": `${envData.SoftPack ? "softpack" : "module"} ${statuses[envData.Status]}`, "onclick": () => {
+			goto(`?envId=${encodeURIComponent(path)}`);
+		}}, [
 			h2(name + (version ? "-" + version : "")),
-			ul(pathParts.map(part => li(part))),
-			ul(envData.Tags.map(tag => li(tag))),
+			ul({"class": "pathParts"}, pathParts.map(part => li(part))),
+			ul({"class": "tags"}, envData.Tags.map(tag => li(tag))),
 			div(envData.Description.split("\n")[0]),
-			ul(envData.Packages.map(pkg => li(pkg)))
+			ul({"class": "packages"}, envData.Packages.map(pkg => li(pkg)))
 		]);
-		this.#name = name;
-		this.#version = version;
+		this.name = name;
+		this.version = version;
 		this.#state = envData.Status;
-		this.#packages = envData.Packages.map(pkg => pkg.toLowerCase().split("@", 2) as [string, string?]);
+		this.packages = envData.Packages.map(pkg => pkg.toLowerCase().split("@", 2) as [string, string?]);
 		this.#sortKey = Array.from(version.matchAll(/\d+/g)).reduce((s, [p]) => s + p.padStart(20, "0"), name) + version.replaceAll(/\d/g, "") + pathParts.join("/");
+		this.readme = envData.ReadMe;
+		this.description = envData.Description;
 
 		otherVersions.add(this);
 	}
@@ -75,24 +82,24 @@ class Environment {
 			return false;
 		}
 
-		if (filter.tags.length > 0 && !filter.tags.every(tag => this.#tags.includes(tag))) {
+		if (filter.tags.length > 0 && !filter.tags.every(tag => this.tags.includes(tag))) {
 			return false;
 		}
 
-		if ((filter.groups.length > 0 || filter.users.length > 0) && !filter.groups.includes(this.#group) && filter.users.length > 0 && !filter.users.includes(this.#user)) {
+		if ((filter.groups.length > 0 || filter.users.length > 0) && !filter.groups.includes(this.group) && filter.users.length > 0 && !filter.users.includes(this.user)) {
 			return false;
 		}
 
 		return filter.terms.length === 0 || filter.terms.every(([name, ver]) => {
-			if (name && this.#name.includes(name)) {
+			if (name && this.name.includes(name)) {
 				return true;
 			}
 
-			if (ver && this.#version.startsWith(ver)) {
+			if (ver && this.version.startsWith(ver)) {
 				return true;
 			}
 
-			for (const [pkgName, pkgVer] of this.#packages) {
+			for (const [pkgName, pkgVer] of this.packages) {
 				if (name && pkgName.includes(name)) {
 					return true;
 				}
@@ -127,14 +134,14 @@ class Environment {
 	}
 
 	cleanup() {
-		for (const tag of this.#tags) {
+		for (const tag of this.tags) {
 			tags.removeEntry(tag);
 		}
 
-		if (this.#user) {
-			users.removeEntry(this.#user);
+		if (this.user) {
+			users.removeEntry(this.user);
 		} else {
-			groups.removeEntry(this.#group);
+			groups.removeEntry(this.group);
 		}
 	}
 }
@@ -316,7 +323,8 @@ const statuses = ["building", "failed", "ready"],
 		label({"for": "showMine"}, "Mine"),
 	]),
 	environmentFilter
-      ]);
+      ]),
+      {promise: ready, resolve: firstLoad} = Promise.withResolvers<void>();
 
 environmentUpdate.when(envs => {
 	for (const [path, envData] of Object.entries(envs)) {
@@ -328,7 +336,11 @@ environmentUpdate.when(envs => {
 			environments.delete(path);
 		}
 	}
+
+	firstLoad();
 });
+
+export {ready, environments};
 
 export default () => base;
 
@@ -425,54 +437,54 @@ add({
 
 			">div": {
 				"margin": "1em 0"
-			},
-
-			">ul": {
-				"list-style": "none",
-				"padding": 0,
-
-				":first-of-type": {
-					"display": "inline-block",
-					"margin-left": "1em",
-
-					" li:not(:first-child):before": {
-						"content": `"/"`,
-						"padding": "0 0.5em"
-					}
-				},
-
-				">li": {
-					"display": "inline-block"
-				},
-
-				":nth-of-type(2):not(:empty)": {
-					"margin-top": "1em",
-
-					">li": {
-						"color": "rgba(0, 0, 0, 0.87)",
-						"background-color": "rgba(0, 0, 0, 0.08)",
-						"font-size": "0.8125rem",
-						"border-radius": "16px",
-						"padding": "0.5em",
-						"margin": "0 0 0.25em 0.25em"
-					}
-				},
-
-				":nth-of-type(3)": {
-					"max-height": "90px",
-					"overflow-y": "auto",
-
-					">li": {
-						"font-size": "0.8125rem",
-						"color": "rgba(85, 105, 255, 0.7)",
-						"border": "1px solid rgba(85, 105, 255, 0.7)",
-						"border-radius": "16px",
-						"padding": "0.5em",
-						"margin": "0 0 0.25em 0.25em"
-					}
-				}
-
 			}
 		}
+	},
+
+	"ul": {
+		"list-style": "none",
+		"padding": 0,
+
+		".pathParts": {
+			"display": "inline-block",
+			"margin-left": "1em",
+
+			" li:not(:first-child):before": {
+				"content": `"›"`,
+				"padding": "0 0.5em"
+			}
+		},
+
+		">li": {
+			"display": "inline-block"
+		},
+
+		".tags:not(:empty)": {
+			"margin-top": "1em",
+
+			">li": {
+				"color": "rgba(0, 0, 0, 0.87)",
+				"background-color": "rgba(0, 0, 0, 0.08)",
+				"font-size": "0.8125rem",
+				"border-radius": "16px",
+				"padding": "0.5em",
+				"margin": "0 0 0.25em 0.25em"
+			}
+		},
+
+		".packages": {
+			"max-height": "90px",
+			"overflow-y": "auto",
+
+			">li": {
+				"font-size": "0.8125rem",
+				"color": "rgba(85, 105, 255, 0.7)",
+				"border": "1px solid rgba(85, 105, 255, 0.7)",
+				"border-radius": "16px",
+				"padding": "0.5em",
+				"margin": "0 0 0.25em 0.25em"
+			}
+		}
+
 	}
 });

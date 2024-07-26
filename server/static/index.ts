@@ -5,12 +5,14 @@ import ready from './lib/load.js';
 import {router} from './lib/router.js';
 import {rpcInit} from './rpc.js';
 import About from './about.js';
-import Environments from './environments.js';
+import Environments, {ready as environmentsReady} from './environments.js';
+import EnvironmentDrawer from './environmentDrawer.js';
 import Tags from './tags.js';
 import Create from './create.js';
 import UserInput from './users.js';
 
 ready.then(() => rpcInit("envs/socket"))
+.then(() => environmentsReady)
 .then(() => {
 	amendNode(document.head, render());
 	amendNode(document.body, [
@@ -26,10 +28,11 @@ ready.then(() => rpcInit("envs/socket"))
 		])),
 		router()
 		.add("about", About)
-		.add("environments", Environments)
+		.add("environments?envId=:path", Environments)
 		.add("tags", Tags)
 		.add("create", Create)
-		.add("", Environments)
+		.add("", Environments),
+		router().add("?envId=:path", EnvironmentDrawer)
 	]);
 });
 
@@ -90,8 +93,7 @@ add({
 
 					":hover": {
 						"background-color": "rgba(0, 0, 0, 0.04)"
-					},
-
+					}
 				},
 				
 				":nth-child(1)": {
