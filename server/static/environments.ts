@@ -1,8 +1,11 @@
-import type {MultiSelect, MultiOption} from './lib/multiselect.js';
+import type {Binding} from './lib/bind.js';
+import type {MultiSelect} from './lib/multiselect.js';
 import type {Subscribed} from './lib/inter.js';
+import bind from './lib/bind.js';
 import {add} from './lib/css.js';
 import {amendNode, bindCustomElement} from './lib/dom.js';
 import {div, h2, input, label, li, main, span, ul} from './lib/html.js';
+import {debounce} from './lib/misc.js';
 import {multioption, multiselect} from './lib/multiselect.js';
 import {setAndReturn} from './lib/misc.js';
 import {NodeMap, node, stringSort} from './lib/nodes.js';
@@ -21,15 +24,15 @@ type Filter = {
 class Environment {
 	[node]: HTMLLIElement;
 	#sortKey: string;
-	tags: string[];
-	#state: number;
+	tags: Binding<string[]>;
+	#state: Binding<number>;
 	user = "";
 	group = "";
-	packages: [string, string?][];
+	packages: Binding<[string, string?][]>;
 	name: string;
 	version: string;
-	readme: string;
-	description: string;
+	readme: Binding<string>;
+	description: Binding<string>;
 
 	constructor(path: string, envData: NonNullable<Subscribed<typeof environmentUpdate>[""]>) {
 		const pathParts = path.split("/"),
@@ -39,34 +42,44 @@ class Environment {
 		      noVersion = pathParts.join("/") + "/" + name,
 		      otherVersions = versionMap.get(noVersion) ?? setAndReturn(versionMap, noVersion, new Versions(filter));
 
-		for (const tag of this.tags = envData.Tags) {
-			tags.addEntry(tag);
-		}
-
 		if (pathParts[0] === "users") {
 			users.addEntry(this.user = pathParts[1]);
 		} else if (pathParts[0] === "groups") {
 			groups.addEntry(this.group = pathParts[1]);
 		}
 
-		this[node] = li({"class": `${envData.SoftPack ? "softpack" : "module"} ${statuses[envData.Status]}`, "onclick": () => {
+		this[node] = li({"class": `${envData.SoftPack ? "softpack" : "module"} ${(this.#state = bind(envData.Status)).transform(state => statuses[state])}`, "onclick": () => {
 			goto(`?envId=${encodeURIComponent(path)}`);
 		}}, [
-			h2(name + (version ? "-" + version : "")),
+			h2(`${this.name = name}${(this.version = version)  ? "-" + version : ""}`),
 			ul({"class": "pathParts"}, pathParts.map(part => li(part))),
-			ul({"class": "tags"}, envData.Tags.map(tag => li(tag))),
-			div(envData.Description.split("\n")[0]),
-			ul({"class": "packages"}, envData.Packages.map(pkg => li(pkg)))
+			(this.tags = bind(envData.Tags)).toDOM(ul({"class": "tags"}), tag => li(tag)),
+			div((this.description = bind(envData.Description)).transform(description => description.split("\n")[0])),
+			(this.packages = bind(envData.Packages.map(pkg => pkg.toLowerCase().split("@", 2) as [string, string?]))).toDOM(ul({"class": "packages"}), pkg => li(pkg[0] + (pkg[1] ? "@" + pkg[1] : "")))
 		]);
-		this.name = name;
-		this.version = version;
-		this.#state = envData.Status;
-		this.packages = envData.Packages.map(pkg => pkg.toLowerCase().split("@", 2) as [string, string?]);
 		this.#sortKey = Array.from(version.matchAll(/\d+/g)).reduce((s, [p]) => s + p.padStart(20, "0"), name) + version.replaceAll(/\d/g, "") + pathParts.join("/");
-		this.readme = envData.ReadMe;
-		this.description = envData.Description;
+		this.readme = bind(envData.ReadMe);
 
 		otherVersions.add(this);
+
+		for (const tag of envData.Tags) {
+			tags.addEntry(tag);
+		}
+	}
+
+	update(envData: NonNullable<Subscribed<typeof environmentUpdate>[""]>) {
+		for (const tag of this.tags()) {
+			tags.removeEntry(tag);
+		}
+
+		for (const tag of envData.Tags) {
+			tags.addEntry(tag);
+		}
+
+		this.tags(envData.Tags);
+		this.description(envData.Description);
+		this.packages(envData.Packages.map(pkg => pkg.toLowerCase().split("@", 2) as [string, string?]));
+		this.readme(envData.ReadMe);
 	}
 
 	compare(b: Environment) {
@@ -75,20 +88,22 @@ class Environment {
 
 	#filter(filter: Filter) {
 		if (filter.building) {
-			if (this.#state === 2) {
+			if (this.#state() === 2) {
 				return false;
 			}
-		} else if (this.#state === 1) {
+		} else if (this.#state() === 1) {
 			return false;
 		}
 
-		if (filter.tags.length > 0 && !filter.tags.every(tag => this.tags.includes(tag))) {
+		if (filter.tags.length > 0 && !filter.tags.every(tag => this.tags().includes(tag))) {
 			return false;
 		}
 
 		if ((filter.groups.length > 0 || filter.users.length > 0) && !filter.groups.includes(this.group) && filter.users.length > 0 && !filter.users.includes(this.user)) {
 			return false;
 		}
+
+		const packages = this.packages();
 
 		return filter.terms.length === 0 || filter.terms.every(([name, ver]) => {
 			if (name && this.name.includes(name)) {
@@ -99,7 +114,7 @@ class Environment {
 				return true;
 			}
 
-			for (const [pkgName, pkgVer] of this.packages) {
+			for (const [pkgName, pkgVer] of packages) {
 				if (name && pkgName.includes(name)) {
 					return true;
 				}
@@ -134,7 +149,7 @@ class Environment {
 	}
 
 	cleanup() {
-		for (const tag of this.tags) {
+		for (const tag of this.tags()) {
 			tags.removeEntry(tag);
 		}
 
@@ -149,7 +164,7 @@ class Environment {
 class EnvironmentList extends HTMLElement {
 	#element: Element;
 	#filter: Filter;
-	#debounce = false;
+	#debounce = debounce();
 
 	constructor(child: Element, filter: Filter) {
 		super();
@@ -161,17 +176,11 @@ class EnvironmentList extends HTMLElement {
 	filter(filter: Filter) {
 		this.#filter = filter;
 
-		if (!this.#debounce) {
-			this.#debounce = true;
-
-			setTimeout(() => {
-				for (const envs of versionMap.values()) {
-					envs.filter(filter);
-				}
-
-				this.#debounce = false;
-			});
-		}
+		this.#debounce(() => {
+			for (const envs of versionMap.values()) {
+				envs.filter(filter);
+			}
+		});
 	}
 
 	setShowAllVersion(v: boolean) {
@@ -231,31 +240,39 @@ class Versions {
 	}
 }
 
-class FilterList extends NodeMap<string, {[node]: MultiOption, name: string, count: number}, MultiSelect> {
-	constructor(name: Exclude<keyof Filter, "terms" | "building">) {
-		super(multiselect(), (a, b) => stringSort(a.name, b.name));
-
-		amendNode(this, {"onchange": function (this: MultiSelect) {
-			filter[name] = this.value as string[];
-
-			environmentFilter.filter(filter);
-		}});
-	}
+class FilterList {
+	#counts = new Map<string, {count: number}>();
+	#debounce = debounce();
+	values = bind([] as string[]);
 
 	addEntry(name: string) {
-		const entry = this.get(name) ?? setAndReturn(this, name, {[node]: multioption(name), name, count: 0});
+		const entry = this.#counts.get(name) ?? setAndReturn(this.#counts, name, {count: 0});
 
 		entry.count++;
+
+		this.#update();
 	}
 
 	removeEntry(name: string) {
-		const entry = this.get(name) ?? {count: 1};
+		const entry = this.#counts.get(name) ?? {count: 1};
 
 		entry.count--;
 
 		if (entry.count <= 0) {
-			this.delete(name);
+			this.#counts.delete(name);
 		}
+
+		this.#update();
+	}
+
+	#update() {
+		this.#debounce(() => {
+			this.values(Array.from(this.#counts.keys()).sort(stringSort));
+		});
+	}
+
+	has(key: string) {
+		return this.#counts.has(key);
 	}
 }
 
@@ -271,34 +288,19 @@ const statuses = ["building", "failed", "ready"],
       showAllVersions = {"class": {"allVersions": true}},
       showLatestVersion = {"class": {"allVersions": false}},
       filter: Filter = {"terms": [], "tags": [], "groups": [], "users": [], "building": false},
-      users = new FilterList("users"),
-      groups = new FilterList("groups"),
-      tags = new FilterList("tags"),
+      users = new FilterList(),
+      groups = new FilterList(),
+      tags = new FilterList(),
       versionMap = new Map<string, Versions>(),
       envSorter = (a: Environment, b: Environment) => a.compare(b),
       environments = new NodeMap<string, Environment, HTMLUListElement>(ul({"id": "environments"}), envSorter),
       environmentFilter = environmentContainer(),
-      mine = input({"type": "checkbox", "id": "showMine", "checked": username.transform(() => false), "onclick": function (this: HTMLInputElement) {
-	if (this.checked) {
-		users[node].value = [username()];
-		groups[node].value = groupList();
-	} else {
-		users[node].value = [];
-		groups[node].value = [];
-	}
-      }}),
-      base = main([
-	input({"type": "search", "id": "filter", "placeholder": "Search for environments by name of package[@version]", "oninput": function (this: HTMLInputElement) {
-		filter.terms = this.value.trim().split(/\s+/g).filter(t => t).map(p => p.split("@", 2) as [string, string?]);
-
-		environmentFilter.filter(filter);
-	}}),
-	amendNode(users, {"placeholder": "Filter by user", "onchange": function (this: MultiSelect) {
+      userFilter = users.values.toDOM(multiselect({"placeholder": "Filter by user", "onchange": function (this: MultiSelect) {
 		if (!this.value.includes(username())) {
 			mine.checked = false;
 		}
-	}}),
-	amendNode(groups, {"placeholder": "Filter by group", "onchange": function (this: MultiSelect) {
+	}}), user => multioption(user)),
+      groupFilter = groups.values.toDOM(multiselect({"placeholder": "Filter by group", "onchange": function (this: MultiSelect) {
 		const selected = this.value;
 
 		for (const group of groupList()) {
@@ -308,8 +310,25 @@ const statuses = ["building", "failed", "ready"],
 				break;
 			}
 		}
+      }}), group => multioption(group)),
+      mine = input({"type": "checkbox", "id": "showMine", "checked": username.transform(() => false), "onclick": function (this: HTMLInputElement) {
+	if (this.checked) {
+		userFilter.value = [username()];
+		groupFilter.value = groupList();
+	} else {
+		userFilter.value = [];
+		groupFilter.value = [];
+	}
+      }}),
+      base = main([
+	input({"type": "search", "id": "filter", "placeholder": "Search for environments by name of package[@version]", "oninput": function (this: HTMLInputElement) {
+		filter.terms = this.value.trim().split(/\s+/g).filter(t => t).map(p => p.split("@", 2) as [string, string?]);
+
+		environmentFilter.filter(filter);
 	}}),
-	amendNode(tags, {"placeholder": "Filter by tag"}),
+	userFilter,
+	groupFilter,
+	tags.values.toDOM(multiselect({"placeholder": "Filter by tag"}), tag => multioption(tag)),
 	input({"type": "checkbox", "id": "showBuilding", "onclick": function (this: HTMLInputElement) {
 		environmentFilter.setShowBuilding(this.checked);
 	}}),
@@ -328,11 +347,16 @@ const statuses = ["building", "failed", "ready"],
 
 environmentUpdate.when(envs => {
 	for (const [path, envData] of Object.entries(envs)) {
-		environments.get(path)?.cleanup();
+		const existing = environments.get(path)
 
 		if (envData) {
-			environments.set(path, new Environment(path, envData));
-		} else {
+			if (existing) {
+				existing.update(envData);
+			} else {
+				environments.set(path, new Environment(path, envData));
+			}
+		} else if (existing) {
+			existing.cleanup();
 			environments.delete(path);
 		}
 	}

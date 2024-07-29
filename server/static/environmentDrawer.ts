@@ -56,13 +56,13 @@ export default ({path}: {path?: string}) => {
 			li(env.group || env.user)
 		]),
 		hr(),
-		Markdown(env.readme, codeHandler),
+		env.readme.toDOM(div(), readme => Markdown(readme, codeHandler)),
 		hr(),
 		h2("Description"),
 		div({"class": "description"}, env.description),
 		hr(),
 		h2("Packages"),
-		ul({"class": "packages"}, env.packages.map(pkg => li(pkg[0] + (pkg[1] ? "@" + pkg[1] : ""))))
+		env.packages.toDOM(ul({"class": "packages"}), pkg => li(pkg[0] + (pkg[1] ? "@" + pkg[1] : "")))
 	]);
 };
 
